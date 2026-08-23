@@ -4,3 +4,4 @@ lib/
 dist/
 *.log
 .lbx-agent-team/
+.pnpm-store/
