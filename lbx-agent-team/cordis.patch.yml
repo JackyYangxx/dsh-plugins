@@ -1,0 +1,6 @@
+- insert:
+    - id: lbx-agent-team
+      name: lbx-agent-team
+      config:
+        stateDir: .lbx-agent-team
+        memberProvider: spawn
