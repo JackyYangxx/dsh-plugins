@@ -30,7 +30,7 @@ export function shellAdapter(ctx: Context): ShellAdapter | undefined {
       exec: async (cmd, cwd) => {
         const spec = shell.resolve({ command: cmd, workdir: cwd })
         const r = await shell.run(spec)
-        return { ok: (r.exitCode ?? 0) === 0, stdout: r.stdout.text ?? '', stderr: r.stderr.text ?? '' }
+        return { ok: r.exitCode === 0, stdout: r.stdout.text ?? '', stderr: r.stderr.text ?? '' }
       },
     }
   }
