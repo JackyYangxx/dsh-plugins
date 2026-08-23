@@ -7,19 +7,31 @@ const execFileP = promisify(execFile)
 export interface ShellResult { ok: boolean; stdout: string; stderr: string }
 export interface ShellAdapter { exec(cmd: string, cwd: string): Promise<ShellResult> }
 
-/** 从 ctx 取 shell 服务（bash/shell/terminal），无则 undefined。 */
+/** POSIX 单引号转义：参数原样进入 shell，杜绝命令注入与变量/命令展开。 */
+function shq(arg: string): string {
+  return "'" + arg.replace(/'/g, "'\\''") + "'"
+}
+
+/**
+ * DSH 真实 ctx.shell 服务（ShellExecutor）的结构形状。
+ * 本地定义以避免引入 dsh-shell 依赖：resolve(request) → spec，
+ * run(spec) → { exitCode, stdout: { text }, stderr: { text } }。
+ */
+interface DshShellService {
+  resolve(request: { command: string; workdir?: string }): unknown
+  run(spec: unknown): Promise<{ exitCode: number | null; stdout: { text: string }; stderr: { text: string } }>
+}
+
+/** 从 ctx 惰性取 DSH shell 服务（ctx.shell），无则 undefined。 */
 export function shellAdapter(ctx: Context): ShellAdapter | undefined {
-  for (const key of ['bash', 'shell', 'terminal'] as const) {
-    const svc = (ctx as unknown as Record<string, unknown>)[key] as
-      | { exec(cmd: string, opts?: { cwd?: string }): Promise<{ code?: number; stdout?: string; stderr?: string }> }
-      | undefined
-    if (svc && typeof svc.exec === 'function') {
-      return {
-        exec: async (cmd, cwd) => {
-          const r = await svc.exec(cmd, { cwd })
-          return { ok: (r.code ?? 0) === 0, stdout: r.stdout ?? '', stderr: r.stderr ?? '' }
-        },
-      }
+  const shell = ctx.get('shell') as DshShellService | undefined
+  if (shell && typeof shell.resolve === 'function' && typeof shell.run === 'function') {
+    return {
+      exec: async (cmd, cwd) => {
+        const spec = shell.resolve({ command: cmd, workdir: cwd })
+        const r = await shell.run(spec)
+        return { ok: (r.exitCode ?? 0) === 0, stdout: r.stdout.text ?? '', stderr: r.stderr.text ?? '' }
+      },
     }
   }
   return undefined
@@ -41,7 +53,7 @@ export function localShell(): ShellAdapter {
 }
 
 export async function runGit(sh: ShellAdapter, cwd: string, args: string[]): Promise<ShellResult> {
-  return sh.exec(`git ${args.map((a) => JSON.stringify(a)).join(' ')}`, cwd)
+  return sh.exec('git ' + args.map((a) => shq(a)).join(' '), cwd)
 }
 
 /** 校验 cwd 是 git 仓库；不是则返回错误信息。 */
@@ -67,7 +79,10 @@ export async function commitAll(sh: ShellAdapter, cwd: string, message: string):
   const commit = await runGit(sh, cwd, ['commit', '-m', message])
   if (!commit.ok) throw new Error(`git commit failed: ${commit.stderr}`)
   const rev = await runGit(sh, cwd, ['rev-parse', 'HEAD'])
-  return rev.stdout.trim()
+  if (!rev.ok) throw new Error(`git rev-parse failed: ${rev.stderr}`)
+  const hash = rev.stdout.trim()
+  if (!/^[0-9a-f]{40}$/.test(hash)) throw new Error(`git rev-parse returned unexpected output: ${hash}`)
+  return hash
 }
 
 /** 把分支 --no-ff 合并回主分支。冲突时抛错（coordinator 协调）。 */
