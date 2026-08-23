@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { mkdir, open, readFile, rename } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { TeamMessage, TeamState } from './types.ts'
@@ -7,9 +8,12 @@ const locks = new Map<string, Promise<unknown>>()
 /** 净化为用户可读的目录 id。 */
 export function sanitizeKey(name: string): string {
   const cleaned = name.trim().toLowerCase()
-    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/[^\p{L}\p{N}._-]+/gu, '-')
     .replace(/^-+|-+$/g, '')
-  return cleaned === '' ? 'team' : cleaned
+  if (cleaned === '' || cleaned === '.' || cleaned === '..') {
+    return 'team-' + createHash('sha1').update(name).digest('hex').slice(0, 8)
+  }
+  return cleaned.slice(0, 64)
 }
 
 /** 进程内锁：同一 (stateRoot, teamId) 的写操作串行。 */
@@ -18,7 +22,7 @@ export async function withTeamLock<T>(stateRoot: string, teamId: string, fn: () 
   const prev = locks.get(key) ?? Promise.resolve()
   let release!: () => void
   const gate = new Promise<void>((r) => { release = r })
-  locks.set(key, prev.then(() => gate))
+  locks.set(key, gate)
   await prev
   try {
     return await fn()
@@ -32,8 +36,9 @@ export async function readTeam(stateRoot: string, teamId: string): Promise<TeamS
   try {
     const raw = await readFile(join(stateRoot, teamId, 'team.json'), 'utf8')
     return JSON.parse(raw) as TeamState
-  } catch {
-    return undefined
+  } catch (err) {
+    if ((err as { code?: string }).code === 'ENOENT') return undefined
+    throw err
   }
 }
 
@@ -74,8 +79,9 @@ export async function readMailbox(
   let raw: string
   try {
     raw = await readFile(join(stateRoot, teamId, 'inbox', `${member}.jsonl`), 'utf8')
-  } catch {
-    return []
+  } catch (err) {
+    if ((err as { code?: string }).code === 'ENOENT') return []
+    throw err
   }
   const out: TeamMessage[] = []
   for (const line of raw.split('\n')) {
