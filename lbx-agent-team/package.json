@@ -29,7 +29,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json && tsc -p tsconfig.client.json && tsdown",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.client.json --noEmit",
-    "test": "node --test test/",
+    "test": "node --test",
     "verify": "pnpm build && node --test test/ && node scripts/verify-composition.mjs",
     "prepublishOnly": "pnpm verify"
   },
