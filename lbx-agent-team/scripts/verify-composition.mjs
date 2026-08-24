@@ -25,7 +25,12 @@
  *    session id, and rejects a missing spec loudly;
  *  - HTTP state route smoke: the `/plugins/lbx-agent-team/state` route
  *    registered against the stubbed web server returns `{ teams: [...] }`
- *    containing the created team from the stubbed workspace registry.
+ *    containing the created team from the stubbed workspace registry;
+ *  - webless mount (Composition C): with webServer / workspaceRegistry absent
+ *    at mount time the plugin stays tool-only (no state route, no crash, all
+ *    16 tools still register); binding both services later and emitting
+ *    `internal/service` re-triggers `registerWebSurface` so the state route
+ *    appears and serves `{ teams: [...] }`.
  *
  * Any failed assertion exits non-zero, so `pnpm verify` fails the build.
  *
@@ -60,14 +65,24 @@ function check(label, condition, detail = '') {
  * registries it collects (tools, sections, commands, listeners, web routes,
  * workspace list). Each composition gets its own registries so `apply()` can
  * run more than once with different configs.
+ *
+ * `options.webless` starts the composition without the webServer and
+ * workspaceRegistry services, modelling a headless profile. Services are
+ * tracked in a mutable presence set: binding them later and emitting
+ * `internal/service` (`_bindWebSurface`) exercises the plugin's lazy
+ * re-registration listener exactly the way a late service bind would.
  */
-function makeContext() {
+function makeContext(options = {}) {
   const tools = new Map()
   const sections = []
   const commands = new Map()
   const listeners = new Map()
   const routes = []
   const workspaces = []
+  const services = new Set(options.webless ? [] : ['webServer', 'workspaceRegistry'])
+
+  const webServerStub = { register(route) { routes.push(route); return () => {} } }
+  const workspaceRegistryStub = { list() { return workspaces } }
 
   const ctx = {
     /** Run an effect synchronously and keep its disposer (reference pattern). */
@@ -79,12 +94,8 @@ function makeContext() {
     get(key) {
       // The web route registers eagerly when both services are present at
       // mount time (the same path a full composition takes).
-      if (key === 'webServer') {
-        return { register(route) { routes.push(route); return () => {} } }
-      }
-      if (key === 'workspaceRegistry') {
-        return { list() { return workspaces } }
-      }
+      if (key === 'webServer' && services.has('webServer')) return webServerStub
+      if (key === 'workspaceRegistry' && services.has('workspaceRegistry')) return workspaceRegistryStub
       // `shell` absent → git helpers fall back to the local execFile shell.
       return undefined
     },
@@ -100,11 +111,26 @@ function makeContext() {
       listeners.set(event, current)
       return () => listeners.set(event, current.filter((candidate) => candidate !== listener))
     },
+    /** Fire every listener of one event, awaiting async listeners. */
+    async emit(event, ...args) {
+      await Promise.all((listeners.get(event) ?? []).map((listener) => listener(...args)))
+    },
     tools: { register(definition) { tools.set(definition.name, definition) } },
     systemPrompt: { section(section) { sections.push(section); return () => {} } },
     commands: { register(definition) { commands.set(definition.name, definition); return () => commands.delete(definition.name) } },
     agents: { get() { return undefined } },
     logger: { info() {}, warn() {}, debug() {} },
+    /**
+     * Late-bind the web surface after mount: register both services and emit
+     * `internal/service` for each (the same events a real composition fires),
+     * so the plugin's lazy re-registration listener can pick them up.
+     */
+    async _bindWebSurface() {
+      services.add('webServer')
+      services.add('workspaceRegistry')
+      await ctx.emit('internal/service', 'webServer')
+      await ctx.emit('internal/service', 'workspaceRegistry')
+    },
     // Collected registries for assertions.
     _tools: tools,
     _sections: sections,
@@ -255,6 +281,35 @@ try {
       ['planner', 'checker', 'tester'].every((name) =>
         payload?.teams?.[0]?.members?.some((member) => member.name === name)))
   }
+  // ── Composition C: webless mount, then late web surface binding ──────
+  const ctxWebless = makeContext({ webless: true })
+  apply(ctxWebless, {})
+  check('webless mount: tools register without web services', ctxWebless._tools.size === 16)
+  check('webless mount: usage section still present',
+    ctxWebless._sections.some((section) => section.name === 'lbx-agent-team:usage'))
+  check('webless mount: no state route before web services bind', ctxWebless._routes.length === 0)
+
+  ctxWebless._workspaces.push({ title: 'verify-workspace', path: workspace })
+  await ctxWebless._bindWebSurface()
+  check('late web binding registers the state route',
+    ctxWebless._routes.length === 1 && ctxWebless._routes[0].path === '/plugins/lbx-agent-team/state',
+    'routes: ' + (ctxWebless._routes.map((candidate) => candidate.path).join(', ') || 'none'))
+  const lateRes = {
+    headersSent: false,
+    writeHead(code, headers) { this.status = code; this.headers = headers },
+    end(body) { this.body = body },
+  }
+  await ctxWebless._routes[0].handler({ url: '/plugins/lbx-agent-team/state' }, lateRes)
+  let latePayload = undefined
+  try {
+    latePayload = JSON.parse(lateRes.body)
+  } catch (error) {
+    check('late-bound route returns JSON', false, String(error))
+  }
+  check('late-bound route serves { teams: [...] } with the created team',
+    lateRes.status === 200 && Array.isArray(latePayload?.teams)
+      && latePayload.teams.length === 1 && latePayload.teams[0].teamId === 'smoke-team',
+    JSON.stringify(latePayload?.teams))
 } finally {
   await rm(workspace, { recursive: true, force: true })
 }
