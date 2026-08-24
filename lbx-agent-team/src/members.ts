@@ -23,7 +23,7 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import { installModelSelection, type Agent, type ModelSelection } from '@deepseek-ai/dsh-agent'
-// Declaration merge only: makes ctx.subagents typed.
+// Value import used below; the dsh-subagent module also declares ctx.subagents.
 import { foldSubagentDescriptor } from '@deepseek-ai/dsh-subagent'
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'

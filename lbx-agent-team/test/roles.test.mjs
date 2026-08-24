@@ -43,8 +43,10 @@ test('role prompts interpolate context values', () => {
   }
 })
 
-test('planner prompt names the create_task tool', () => {
-  assert.ok(prompts.planner.includes('lbx_agent_team_create_task'))
+test('planner prompt proposes the task list to the captain instead of creating tasks', () => {
+  assert.ok(prompts.planner.includes('lbx_agent_team_send_message'), 'planner should propose via send_message')
+  assert.ok(prompts.planner.includes('propose'), 'planner should propose the task list')
+  assert.ok(!prompts.planner.includes('lbx_agent_team_create_task'), 'planner must not name the captain-only create_task tool')
 })
 
 test('checker prompt names the submit_review tool', () => {

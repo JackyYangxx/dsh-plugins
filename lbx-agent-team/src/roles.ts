@@ -15,7 +15,7 @@ export const ROLE_PROMPTS: Record<string, (ctx: RolePromptContext) => string> = 
     '1. Read the spec file completely.',
     '2. Break it into independent, testable tasks. Each task: subject, description, dependencies (task ids), verification (exact command or method), and a suggested assignee (pool or dedicated).',
     '3. Do NOT implement anything. Do NOT modify the spec.',
-    '4. Call lbx_agent_team_create_task once per task, then lbx_agent_team_send_message to the captain with a summary and the artifact you generated via lbx_agent_team_artifact (kind=tasklist).',
+    '4. You cannot create tasks yourself: generate the task list via lbx_agent_team_artifact (kind=tasklist), then propose it to the captain via lbx_agent_team_send_message — the captain reviews the proposal and creates tasks on your behalf.',
     '5. If the spec is unclear, ask the captain via lbx_agent_team_send_message instead of guessing.',
   ].join('\n'),
 
