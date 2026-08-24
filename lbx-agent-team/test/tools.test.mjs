@@ -4,12 +4,13 @@ import assert from 'node:assert/strict'
 import { access, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { readTeam, withTeamLock, writeTeam } from '../lib/state.js'
+import { readMailbox, readTeam, withTeamLock, writeTeam } from '../lib/state.js'
 import { createWorktree, localShell, runGit } from '../lib/git.js'
 import {
   assertAttempt,
   beginTaskAttempt,
   dispatchInsideLock,
+  fireWakes,
   openTaskOf,
   requeueTask,
   resetTaskWorktree,
@@ -372,6 +373,101 @@ test('syncMemberStatus releases a member with no open work to idle (I4)', async 
     await syncMemberStatus(e, agent, 'idle', workspace)
     const persisted = await readTeam(stateRoot, 'team1')
     assert.equal(persisted.members[0].status, 'idle')
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+// —— fireWakes 回滚与离线耐久（复审建议的回归保护）——
+
+/** fireWakes 专用 env：mock ctx.agents（队长在线/离线）与 ctx.subagents.followup。 */
+function makeWakeEnv({ followup, captainOnline = true } = {}) {
+  const captain = { id: 'captain-1' }
+  return {
+    ctx: {
+      agents: { get: (id) => (captainOnline && id === 'captain-1' ? captain : undefined) },
+      subagents: { followup: followup ?? (async () => {}) },
+      logger: { warn: () => {}, info: () => {} },
+      get: () => undefined,
+    },
+    config: makeConfig({ gitWorktrees: false, autoDispatch: false }),
+  }
+}
+
+/** 落盘一个已 claim 的团队（dever-1 working、t1 claimed + attemptId）。 */
+async function makeClaimedTeam(root) {
+  const stateRoot = join(root, '.lbx-agent-team')
+  const team = makeTeam({
+    members: [{ id: 'm1', name: 'dever-1', role: 'dever', status: 'working', joinedAt: 1 }],
+    tasks: [makeTask('t1')],
+    taskSeq: 1,
+  })
+  await writeTeam(stateRoot, team)
+  const fresh = await readTeam(stateRoot, 'team1')
+  beginTaskAttempt(fresh.tasks[0], 'dever-1')
+  await writeTeam(stateRoot, fresh)
+  return { stateRoot, fresh }
+}
+
+test('fireWakes rolls back the claim when the member wake fails (attemptId match)', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'lbx-tools-'))
+  try {
+    const { stateRoot, fresh } = await makeClaimedTeam(root)
+    const e = makeWakeEnv({ followup: async () => { throw new Error('wake failed') } })
+    const wakes = [{ member: fresh.members[0], task: fresh.tasks[0] }]
+    await fireWakes(e, signal(), stateRoot, 'team1', wakes)
+    const persisted = await readTeam(stateRoot, 'team1')
+    // 回滚：任务回 pending/pool、attemptId 清空、成员回 idle
+    assert.equal(persisted.tasks[0].status, 'pending')
+    assert.equal(persisted.tasks[0].assignee, 'pool')
+    assert.equal(persisted.tasks[0].attemptId, undefined)
+    assert.equal(persisted.members[0].status, 'idle')
+    // 消息先落盘（耐久）
+    const inbox = await readMailbox(stateRoot, 'team1', 'dever-1')
+    assert.equal(inbox.length, 1)
+    assert.equal(inbox[0].from, 'captain')
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('fireWakes does not roll back a claim taken over concurrently (stale attemptId)', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'lbx-tools-'))
+  try {
+    const { stateRoot, fresh } = await makeClaimedTeam(root)
+    // 模拟并发接管（如 reassign）：磁盘上 attemptId 已被换新
+    const taken = await readTeam(stateRoot, 'team1')
+    taken.tasks[0].attemptId = 't1-a2-999'
+    taken.tasks[0].assignee = 'dever-2'
+    taken.tasks[0].status = 'claimed'
+    await writeTeam(stateRoot, taken)
+    // 携带旧 attemptId 的唤醒失败 → 不得回滚（只回滚精确派发）
+    const e = makeWakeEnv({ followup: async () => { throw new Error('wake failed') } })
+    const wakes = [{ member: fresh.members[0], task: fresh.tasks[0] }]
+    await fireWakes(e, signal(), stateRoot, 'team1', wakes)
+    const persisted = await readTeam(stateRoot, 'team1')
+    assert.equal(persisted.tasks[0].attemptId, 't1-a2-999')
+    assert.equal(persisted.tasks[0].assignee, 'dever-2')
+    assert.equal(persisted.tasks[0].status, 'claimed')
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('fireWakes persists the assignment message first when the captain is offline', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'lbx-tools-'))
+  try {
+    const { stateRoot, fresh } = await makeClaimedTeam(root)
+    const e = makeWakeEnv({ captainOnline: false })
+    const wakes = [{ member: fresh.members[0], task: fresh.tasks[0] }]
+    await fireWakes(e, signal(), stateRoot, 'team1', wakes)
+    // 消息已落盘（恢复后重投）；无唤醒尝试 → 不回滚
+    const inbox = await readMailbox(stateRoot, 'team1', 'dever-1')
+    assert.equal(inbox.length, 1)
+    assert.ok(inbox[0].content.includes('Attempt id: t1-a1-'))
+    const persisted = await readTeam(stateRoot, 'team1')
+    assert.equal(persisted.tasks[0].status, 'claimed')
+    assert.equal(persisted.members[0].status, 'working')
   } finally {
     await rm(root, { recursive: true, force: true })
   }
