@@ -1,0 +1,198 @@
+/* LBX activity panel overlay chrome (Task 18).
+   The panel lives in shell.overlay as one additive entry: a right-docked
+   surface above the conversation column. Token vocabulary follows the
+   dsh-agent-teams reference with hard fallbacks (same discipline as
+   TeamPanel.module.css) so the surface renders before the host theme
+   resolves, and WCAG AA text contrast is fixed by the badge text tokens. */
+
+.panel {
+  /* Bridge the older reference token vocabulary onto the rc.8 palette,
+     scoped to this surface so the host theme is never mutated. */
+  --dsw-alias-line-normal: var(--dsw-static-neutral-bluish-150, #e7e9ee);
+  --dsw-alias-line-strong: color-mix(
+    in srgb,
+    var(--dsw-static-neutral-bluish-200, #e1e5ee) 50%,
+    var(--dsw-static-neutral-bluish-300, #cfd3d6)
+  );
+  --dsw-alias-bg-module: var(--dsw-alias-bg-layer-1, #ffffff);
+  --dsw-alias-bg-fill-neutral: var(--dsw-static-neutral-bluish-100, #eef0f4);
+  --dsw-alias-state-business-primary: var(--dsw-alias-state-business-primary, #4d6bfe);
+  --dsw-alias-label-primary: var(--dsw-alias-label-primary, #1b2430);
+  --dsw-alias-label-secondary: var(--dsw-alias-label-secondary, #3d4657);
+  --dsw-alias-label-tertiary: var(--dsw-alias-label-tertiary, #5b6472);
+
+  position: absolute;
+  top: 64px;
+  right: 18px;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 380px;
+  max-width: calc(100vw - 36px);
+  max-height: min(72vh, 560px);
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--dsw-alias-line-strong) 58%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--dsw-alias-bg-module) 97%, transparent);
+  box-shadow:
+    0 12px 32px color-mix(in srgb, var(--dsw-alias-label-primary) 14%, transparent),
+    0 32px 72px color-mix(in srgb, var(--dsw-alias-label-primary) 10%, transparent);
+  color: var(--dsw-alias-label-primary);
+}
+
+.panelHead {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 8px 10px 8px 14px;
+  border-bottom: 1px solid var(--dsw-alias-line-normal);
+}
+
+.panelTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  overflow: hidden;
+  flex: 1;
+  min-width: 0;
+  color: var(--dsw-alias-label-primary);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.panelDot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--dsw-alias-label-tertiary);
+}
+
+.panelDot[data-busy='true'] {
+  background: var(--dsw-alias-state-business-primary);
+  animation: lbxAgentTeamPulse 1.25s ease-in-out infinite;
+}
+
+@keyframes lbxAgentTeamPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+.panelCount {
+  flex: none;
+  min-width: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--dsw-alias-bg-fill-neutral);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 17px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.panelClose {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.panelClose:hover {
+  background: var(--dsw-alias-bg-fill-neutral);
+  color: var(--dsw-alias-label-primary);
+}
+
+.panelClose:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline-offset: 1px;
+}
+
+.panelCloseIcon {
+  display: block;
+}
+
+/* Scrollable team list with a hard-scoped scrollbar token fallback. */
+.teams {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: color-mix(in srgb, var(--dsw-alias-label-tertiary, #5b6472) 28%, transparent) transparent;
+  scrollbar-width: thin;
+}
+
+.teams::-webkit-scrollbar {
+  width: 6px;
+}
+
+.teams::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.teams::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--dsw-alias-label-tertiary, #5b6472) 28%, transparent);
+  background-clip: padding-box;
+}
+
+.emptyHint {
+  margin: 0;
+  padding: 14px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+/* Archived teams sit under a label strip inside the same scroll container. */
+.archivedWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px 0;
+}
+
+.archiveLabel {
+  padding: 0 2px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 9.5px;
+  font-weight: 600;
+  line-height: 14px;
+  letter-spacing: 0.02em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panelClose,
+  .panelDot {
+    transition: none;
+    animation: none;
+  }
+}
+
+/* Narrow screens: the panel becomes a near-full-width inset overlay. */
+@media (max-width: 640px) {
+  .panel {
+    top: 56px;
+    right: 12px;
+    left: 12px;
+    width: auto;
+    max-width: none;
+  }
+}

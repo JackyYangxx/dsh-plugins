@@ -7,12 +7,15 @@
  * its dependency ids as chips so the graph reads top-down like a pipeline.
  * The layout projections live in `dag-layout.ts` (no CSS/DOM dependency) and
  * are re-exported here so both the component and plain `node --test` imports
- * share one implementation.
+ * share one implementation. Copy flows through the optional `t` locale seat
+ * (Task 18); without one an English fallback keeps the component renderable
+ * standalone.
  */
 
 import type { CSSProperties } from 'react'
 import { dagDepths, orderedDagEntries, type DagDepthEntry } from './dag-layout.ts'
 import type { ActivityTask } from './activity-monitor.ts'
+import { enFallbackTranslate, type LbxAgentTeamTranslate } from './locales.ts'
 import css from './TeamPanel.module.css'
 
 export { dagDepths, orderedDagEntries }
@@ -25,6 +28,8 @@ export interface DagViewProps {
   readonly caption?: string
   /** Clamp for the indentation depth (deeper chains flatten at this level). */
   readonly maxDepth?: number
+  /** Optional locale translate seat; English fallback when absent. */
+  readonly t?: LbxAgentTeamTranslate
 }
 
 const DAG_INDENT_PER_LEVEL = 14
@@ -32,7 +37,8 @@ const DAG_INDENT_PER_LEVEL = 14
 /** Dependency list: tasks indented by upstream depth, dependency ids as chips.
  *  The section count is the number of tasks that carry dependencies (the ids
  *  the list actually renders as chip rows), not the number of edges. */
-export function DagView({ tasks, caption = 'Task dependencies', maxDepth = 8 }: DagViewProps) {
+export function DagView({ tasks, caption, maxDepth = 8, t }: DagViewProps) {
+  const translate = t ?? enFallbackTranslate
   const entries = orderedDagEntries(tasks)
   const byId = new Map<string, ActivityTask>()
   for (const task of tasks) byId.set(task.id, task)
@@ -40,11 +46,11 @@ export function DagView({ tasks, caption = 'Task dependencies', maxDepth = 8 }: 
   return (
     <section className={css.section} data-panel-section="dag">
       <header className={css.sectionHead}>
-        <span className={css.sectionTitle}>{caption}</span>
-        <span className={css.sectionCount} title="tasks with dependencies">{withDependencies.length}</span>
+        <span className={css.sectionTitle}>{caption ?? translate('dag.caption')}</span>
+        <span className={css.sectionCount} title={translate('dag.countTitle')}>{withDependencies.length}</span>
       </header>
       {entries.length === 0
-        ? <p className={css.emptyHint}>No tasks yet.</p>
+        ? <p className={css.emptyHint}>{translate('dag.empty')}</p>
         : (
           <ol className={css.dagList}>
             {entries.map(({ task, depth }) => {

@@ -8,15 +8,17 @@
  * scrollable body. The body height is capped by CSS (narrow screens get a
  * stricter cap) so long rosters/task lists scroll instead of growing forever.
  *
- * Collapse state is controlled by props when `collapsed`/`onToggleCollapsed`
- * are provided and falls back to a local toggle otherwise, so the component
- * stays fully testable and HMR-friendly: no DOM access, no effects, no
- * global state.
+ * Collapse state is controlled by props when `collapsed`/`onToggleCollapsed` are provided and falls back to a local toggle
+ * otherwise, so the component stays fully testable and HMR-friendly: no DOM
+ * access, no effects, no global state. All copy flows through the optional
+ * `t` locale seat (Task 18); without one an English fallback keeps the
+ * component renderable standalone.
  */
 
-import { useCallback, useState, type ReactNode } from 'react'
+import { useCallback, useId, useState, type ReactNode } from 'react'
 import { panelSummary, type PanelSummary } from './activity-model.ts'
 import type { ActivityTeam } from './activity-monitor.ts'
+import { enFallbackTranslate, type LbxAgentTeamLocaleKey, type LbxAgentTeamTranslate } from './locales.ts'
 import { DagView } from './DagView.tsx'
 import { Issues } from './Issues.tsx'
 import { Roster } from './Roster.tsx'
@@ -34,34 +36,39 @@ export interface TeamPanelProps {
   readonly defaultCollapsed?: boolean
   /** Optional extra header content (e.g. panel-level actions). */
   readonly headerExtra?: ReactNode
+  /** Optional locale translate seat; English fallback when absent. */
+  readonly t?: LbxAgentTeamTranslate
 }
 
 export interface SummaryBadgesProps {
   /** The bucketed count projection from activity-model. */
   readonly summary: PanelSummary
+  /** Optional locale translate seat; English fallback when absent. */
+  readonly t?: LbxAgentTeamTranslate
 }
 
-const SUMMARY_BUCKETS: ReadonlyArray<readonly [bucket: Exclude<keyof PanelSummary, 'total'>, label: string]> = [
-  ['done', 'done'],
-  ['inProgress', 'doing'],
-  ['inReview', 'review'],
-  ['failed', 'failed'],
-  ['waiting', 'waiting'],
-  ['other', 'other'],
+const SUMMARY_BUCKETS: ReadonlyArray<readonly [bucket: Exclude<keyof PanelSummary, 'total'>, label: LbxAgentTeamLocaleKey]> = [
+  ['done', 'stage.done'],
+  ['inProgress', 'stage.working'],
+  ['inReview', 'stage.review'],
+  ['failed', 'stage.failed'],
+  ['waiting', 'stage.pending'],
+  ['other', 'stage.other'],
 ]
 
 /** One count badge per panelSummary bucket, tone-graded by bucket. */
-export function SummaryBadges({ summary }: SummaryBadgesProps) {
+export function SummaryBadges({ summary, t }: SummaryBadgesProps) {
+  const translate = t ?? enFallbackTranslate
   return (
     <span className={css.summaryBadges}>
       <span className={css.summaryBadge} data-bucket="total">
         {summary.total}
-        <span className={css.summaryBadgeLabel}>total</span>
+        <span className={css.summaryBadgeLabel}>{translate('bucket.total')}</span>
       </span>
       {SUMMARY_BUCKETS.map(([bucket, label]) => (
         <span key={bucket} className={css.summaryBadge} data-bucket={bucket} data-count={summary[bucket]}>
           {summary[bucket]}
-          <span className={css.summaryBadgeLabel}>{label}</span>
+          <span className={css.summaryBadgeLabel}>{translate(label)}</span>
         </span>
       ))}
     </span>
@@ -95,7 +102,9 @@ export function TeamPanel({
   onToggleCollapsed,
   defaultCollapsed = false,
   headerExtra,
+  t,
 }: TeamPanelProps) {
+  const translate = t ?? enFallbackTranslate
   const [internalCollapsed, setInternalCollapsed] = useState(defaultCollapsed)
   const isCollapsed = collapsed ?? internalCollapsed
   const toggleCollapsed = useCallback((): void => {
@@ -108,10 +117,12 @@ export function TeamPanel({
   // panelSummary takes a mutable task list; the snapshot is readonly, so copy
   // the array at the call boundary (cheap, snapshot-sized).
   const summary = panelSummary({ tasks: [...team.tasks] })
-  // Stable id for the collapsible body; slugified so a hostile teamId cannot
-  // inject invalid idref characters. Rendered (and referenced via
-  // aria-controls) only while the panel is expanded.
-  const bodyId = `lbx-agent-team-${team.teamId.replace(/[^a-zA-Z0-9_-]+/g, '-')}-body`
+  // Stable id for the collapsible body. Derived from useId (Task 17 review
+  // minor) rather than the teamId alone: multiple panels can surface the same
+  // team generation (live + archived), so a teamId-derived id would collide.
+  // useId is instance-unique, so aria-controls always names the right body.
+  const generatedId = useId()
+  const bodyId = `lbx-agent-team-${generatedId.replace(/[^a-zA-Z0-9_-]+/g, '')}-body`
   return (
     <section
       className={css.panel}
@@ -127,24 +138,24 @@ export function TeamPanel({
           onClick={toggleCollapsed}
           aria-expanded={!isCollapsed}
           aria-controls={isCollapsed ? undefined : bodyId}
-          aria-label={isCollapsed ? `Expand ${team.name}` : `Collapse ${team.name}`}
-          title={isCollapsed ? 'Expand' : 'Collapse'}
+          aria-label={isCollapsed ? translate('team.expand', { name: team.name }) : translate('team.collapse', { name: team.name })}
+          title={isCollapsed ? translate('team.expandShort') : translate('team.collapseShort')}
         >
           <Chevron open={!isCollapsed} />
         </button>
         <span className={css.panelTitle} title={team.name}>{team.name}</span>
-        {team.status === 'archived' && <span className={css.archivedPill}>archived</span>}
+        {team.status === 'archived' && <span className={css.archivedPill}>{translate('team.archived')}</span>}
         {headerExtra}
       </header>
       <div className={css.summaryRow}>
-        <SummaryBadges summary={summary} />
+        <SummaryBadges summary={summary} t={translate} />
       </div>
       {!isCollapsed && (
         <div className={css.body} id={bodyId} data-panel-body>
-          <Roster members={team.members} />
-          <TaskList tasks={team.tasks} />
-          <DagView tasks={team.tasks} />
-          <Issues issues={team.issues} />
+          <Roster members={team.members} t={translate} />
+          <TaskList tasks={team.tasks} t={translate} />
+          <DagView tasks={team.tasks} t={translate} />
+          <Issues issues={team.issues} t={translate} />
         </div>
       )}
     </section>
