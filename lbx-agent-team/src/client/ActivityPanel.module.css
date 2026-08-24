@@ -181,6 +181,10 @@
 
 /* Reopen badge shown while the panel is collapsed but activity exists. */
 .panelBadge {
+  /* Token bridge scoped to the badge itself: the panel bridge does not
+     reach this sibling node, so re-declare the aliases it relies on. */
+  --dsw-alias-state-business-primary: var(--dsw-alias-state-business-primary, #4d6bfe);
+  --dsw-alias-label-on-fill: var(--dsw-alias-label-on-fill, #ffffff);
   position: fixed;
   right: 16px;
   bottom: 16px;

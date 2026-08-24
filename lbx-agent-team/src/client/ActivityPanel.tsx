@@ -120,12 +120,15 @@ export function ActivityPanel({ sessionsList, t }: ActivityPanelProps): ReactNod
   useEffect(() => {
     const hadActivity = visibleCount > 0
     if (hadActivity) {
-      if (!lastHadActivityRef.current) {
-        // 0 -> >0 transition: fresh activity resets the user gate.
+      // 0 -> >0 transition: fresh activity resets the user gate AND is the
+      // only case that auto-opens (settle window: activity already present
+      // at first paint only shows the reopen badge, never pops the panel).
+      const wasInactive = !lastHadActivityRef.current
+      if (wasInactive) {
         userClosedRef.current = false
       }
       lastHadActivityRef.current = true
-      if (!userClosedRef.current) {
+      if (wasInactive && !userClosedRef.current) {
         setOpen(true)
       }
       return
@@ -193,6 +196,10 @@ export function ActivityPanel({ sessionsList, t }: ActivityPanelProps): ReactNod
     if (!open) return
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key !== 'Escape') return
+      if (event.defaultPrevented) return
+      const target = event.target as HTMLElement | null
+      const isTypingTarget = target !== null && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
+      if (isTypingTarget) return
       event.preventDefault()
       if (allCollapsedRef.current) {
         closePanelRef.current()
