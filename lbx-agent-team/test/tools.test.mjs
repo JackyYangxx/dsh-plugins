@@ -1,16 +1,21 @@
 // Task 11: 工具层纯逻辑测试——attempt 能力、worktree 路径派生、dispatch 派发泵。
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { access, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { readTeam, withTeamLock, writeTeam } from '../lib/state.js'
+import { createWorktree, localShell, runGit } from '../lib/git.js'
 import {
   assertAttempt,
   beginTaskAttempt,
   dispatchInsideLock,
+  openTaskOf,
   requeueTask,
+  resetTaskWorktree,
+  syncMemberStatus,
   taskBranch,
+  taskCommitCwd,
   taskWorktreePath,
   withTeamMutation,
 } from '../lib/tools/helpers.js'
@@ -31,7 +36,11 @@ function makeConfig(overrides = {}) {
 
 function makeEnv(config = makeConfig()) {
   return {
-    ctx: { agents: { get: () => undefined }, logger: { warn: () => {} } },
+    ctx: {
+      agents: { get: () => undefined },
+      logger: { warn: () => {}, info: () => {} },
+      get: () => undefined, // shellAdapter 探测：无 shell 服务 → 本地兜底
+    },
     config,
   }
 }
@@ -227,6 +236,142 @@ test('withTeamMutation runs the mutation then dispatches (create_task trigger)',
     assert.equal(persisted.tasks[0].status, 'claimed')
     assert.equal(persisted.tasks[0].assignee, 'dever-1')
     assert.equal(persisted.members[0].status, 'working')
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+// —— 评审修复测试：I1（commit cwd 守卫）/ I2（worktree 清理）/ I4（叠单防护）——
+
+test('taskCommitCwd guards gitWorktrees=false and members without a worktree (I1)', () => {
+  const member = {
+    id: 'm1', name: 'dever-1', role: 'dever', status: 'idle',
+    worktreePath: '/ws/.lbx-agent-team/team1/worktrees/dever-1/t1',
+    branch: 'team/team1/t1', joinedAt: 1,
+  }
+  // gitWorktrees=false → 共享工作树
+  assert.equal(taskCommitCwd(makeConfig({ gitWorktrees: false }), member, '/ws', '/ws/.lbx-agent-team', 'team1', 't1'), '/ws')
+  // 无成员（captain 任务）→ 共享工作树
+  assert.equal(taskCommitCwd(makeConfig({ gitWorktrees: true }), undefined, '/ws', '/ws/.lbx-agent-team', 'team1', 't1'), '/ws')
+  // 成员有 worktree → 该任务的确定性 worktree 路径
+  assert.equal(
+    taskCommitCwd(makeConfig({ gitWorktrees: true }), member, '/ws', '/ws/.lbx-agent-team', 'team1', 't1'),
+    '/ws/.lbx-agent-team/team1/worktrees/dever-1/t1',
+  )
+  // 成员无 worktreePath（建 worktree 失败/非 dever）→ 共享工作树
+  const bare = { id: 'm2', name: 'dever-2', role: 'dever', status: 'idle', joinedAt: 1 }
+  assert.equal(taskCommitCwd(makeConfig({ gitWorktrees: true }), bare, '/ws', '/ws/.lbx-agent-team', 'team1', 't2'), '/ws')
+})
+
+test('resetTaskWorktree removes the task worktree and branch (I2)', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'lbx-tools-git-'))
+  try {
+    const repo = join(root, 'repo')
+    const shell = localShell()
+    await runGit(shell, root, ['init', '-b', 'main', 'repo'])
+    await runGit(shell, repo, ['config', 'user.email', 't@t.t'])
+    await runGit(shell, repo, ['config', 'user.name', 't'])
+    await writeFile(join(repo, 'base.txt'), 'base\n')
+    await runGit(shell, repo, ['add', '-A'])
+    await runGit(shell, repo, ['commit', '-m', 'base'])
+    const stateRoot = join(repo, '.lbx-agent-team')
+    const wtPath = taskWorktreePath(stateRoot, 'team1', 'dever-1', 't1')
+    const branch = taskBranch('team1', 't1')
+    await createWorktree(shell, { repo, path: wtPath, branch, base: 'main' })
+    const before = await runGit(shell, repo, ['branch', '--list', branch])
+    assert.ok(before.stdout.includes('team1/t1'))
+
+    const e = makeEnv(makeConfig({ gitWorktrees: true }))
+    await resetTaskWorktree(e, repo, stateRoot, makeTeam(), 'dever-1', 't1')
+
+    const after = await runGit(shell, repo, ['branch', '--list', branch])
+    assert.equal(after.stdout.trim(), '')
+    const exists = await access(wtPath).then(() => true).catch(() => false)
+    assert.equal(exists, false)
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('openTaskOf detects a member holding claimed/in_progress work (I4)', () => {
+  const team = makeTeam({
+    members: [{ id: 'm1', name: 'dever-1', role: 'dever', status: 'working', joinedAt: 1 }],
+    tasks: [
+      makeTask('t1', { status: 'claimed', assignee: 'dever-1' }),
+      makeTask('t2', { status: 'in_progress', assignee: 'dever-2' }),
+    ],
+  })
+  assert.equal(openTaskOf(team, 'dever-1').id, 't1')
+  assert.equal(openTaskOf(team, 'dever-2').id, 't2')
+  assert.equal(openTaskOf(team, 'dever-3'), undefined)
+  // submitted（in_review）不再视为叠单
+  const idle = makeTeam({
+    tasks: [makeTask('t1', { status: 'in_review', assignee: 'dever-1' })],
+  })
+  assert.equal(openTaskOf(idle, 'dever-1'), undefined)
+})
+
+test('dispatchInsideLock never stacks a second task on a member with open work (I4)', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'lbx-tools-'))
+  try {
+    const stateRoot = join(root, '.lbx-agent-team')
+    const workspace = root
+    const team = makeTeam({
+      members: [{ id: 'm1', name: 'dever-1', role: 'dever', status: 'idle', joinedAt: 1 }],
+      // dever-1 已持有 t1（in_progress）；t2 就绪但不应派发给它
+      tasks: [
+        makeTask('t1', { status: 'in_progress', assignee: 'dever-1' }),
+        makeTask('t2', { status: 'pending', assignee: 'pool' }),
+      ],
+      taskSeq: 2,
+    })
+    await writeTeam(stateRoot, team)
+    const fresh = await readTeam(stateRoot, 'team1')
+    const wakes = await dispatchInsideLock(makeEnv(), signal(), workspace, stateRoot, fresh)
+    assert.equal(wakes.length, 0)
+    assert.equal(fresh.tasks[1].status, 'pending')
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('syncMemberStatus parks a member that still owns open work (I4)', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'lbx-tools-'))
+  try {
+    const stateRoot = join(root, '.lbx-agent-team')
+    const workspace = root
+    const team = makeTeam({
+      members: [{ id: 'm1', name: 'dever-1', role: 'dever', status: 'working', joinedAt: 1 }],
+      tasks: [makeTask('t1', { status: 'in_progress', assignee: 'dever-1' })],
+      taskSeq: 1,
+    })
+    await writeTeam(stateRoot, team)
+    const e = makeEnv()
+    const agent = { id: 'm1', session: { header: { cwd: workspace } } }
+    // turn 结束（idle），但持有 in_progress 任务 → 保持 working（parked），不派发
+    await syncMemberStatus(e, agent, 'idle', workspace)
+    const persisted = await readTeam(stateRoot, 'team1')
+    assert.equal(persisted.members[0].status, 'working')
+    assert.equal(persisted.tasks[0].status, 'in_progress')
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('syncMemberStatus releases a member with no open work to idle (I4)', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'lbx-tools-'))
+  try {
+    const stateRoot = join(root, '.lbx-agent-team')
+    const workspace = root
+    const team = makeTeam({
+      members: [{ id: 'm1', name: 'dever-1', role: 'dever', status: 'working', joinedAt: 1 }],
+    })
+    await writeTeam(stateRoot, team)
+    const e = makeEnv()
+    const agent = { id: 'm1', session: { header: { cwd: workspace } } }
+    await syncMemberStatus(e, agent, 'idle', workspace)
+    const persisted = await readTeam(stateRoot, 'team1')
+    assert.equal(persisted.members[0].status, 'idle')
   } finally {
     await rm(root, { recursive: true, force: true })
   }

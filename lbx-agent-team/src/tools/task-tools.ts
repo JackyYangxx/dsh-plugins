@@ -18,6 +18,7 @@ import {
   liveCaptain,
   mergeTaskBranch,
   newMessageId,
+  openTaskOf,
   quiesceOldAssignee,
   removeTaskWorktree,
   requireAgent,
@@ -28,7 +29,7 @@ import {
   requeueTask,
   resetTaskWorktree,
   stateRootOf,
-  taskWorktreePath,
+  taskCommitCwd,
   workspaceOf,
   withTeamMutation,
   type Wake,
@@ -169,7 +170,9 @@ export function registerTaskTools(ctx: Context, config: ToolsConfig): void {
           const poolMember = fresh.members.find((m) => m.name === claimerName && m.status !== 'removed')
           if (poolMember === undefined) throw new Error(`member not found: "${claimerName}"`)
           if (poolMember.role !== 'dever') throw new Error(`member "${claimerName}" is not a dever`)
-          if (poolMember.status === 'working') throw new Error(`member "${claimerName}" is busy with another task`)
+          // I4：叠单防护——持有任何未完成任务（claimed/in_progress）时拒绝
+          const open = openTaskOf(fresh, claimerName)
+          if (open !== undefined) throw new Error(`member "${claimerName}" still has an open task ${open.id}`)
           member = poolMember
         } else {
           // 显式指派给命名成员
@@ -178,7 +181,8 @@ export function registerTaskTools(ctx: Context, config: ToolsConfig): void {
           }
           const named = fresh.members.find((m) => m.name === task.assignee && m.status !== 'removed')
           if (named === undefined) throw new Error(`member not found: "${task.assignee}"`)
-          if (named.status === 'working') throw new Error(`member "${named.name}" is busy with another task`)
+          const namedOpen = openTaskOf(fresh, named.name)
+          if (namedOpen !== undefined) throw new Error(`member "${named.name}" still has an open task ${namedOpen.id}`)
           member = named
         }
 
@@ -365,10 +369,11 @@ export function registerTaskTools(ctx: Context, config: ToolsConfig): void {
           if (targetMember === undefined) throw new Error(`member not found: "${target}"`)
           if (targetMember.status === 'working') throw new Error(`member "${target}" is busy with another task`)
         }
-        // 清理旧 worktree/分支，使重试可重建
+        // 清理旧 worktree/分支，使重试可重建。注意：不把旧成员置 idle——它可能仍在
+        // 运行中且即将被 quiesce 打断；保持其当前状态，派发泵因此不会给它派新任务
+        // （M1：quiesce 竞态）。
         if (oldMember !== undefined) {
           await resetTaskWorktree(e, workspace, stateRoot, fresh, oldMember.name, task.id)
-          if (oldMember.status !== 'removed') oldMember.status = 'idle'
         }
         const wakes: Wake[] = []
         if (target === 'pool') {
@@ -522,9 +527,9 @@ ${(value.commands ?? []).join('\n')}`,
           ? undefined
           : fresh.members.find((m) => m.name === task.assignee && m.status !== 'removed')
         const memberName = member?.name ?? (task.assignee === 'captain' ? 'captain' : '')
-        const cwd = memberName === '' || memberName === 'captain'
-          ? workspace
-          : taskWorktreePath(stateRoot, fresh.id, memberName, task.id)
+        // I1：gitWorktrees=false 或成员无 worktree（captain 任务/建 worktree 失败）时
+        // 退化为共享工作树；manual 退化路径共用同一 cwd。
+        const cwd = taskCommitCwd(config, member, workspace, stateRoot, fresh.id, task.id)
 
         const manualHash = (args.commitHash ?? '').trim()
         let hash: string

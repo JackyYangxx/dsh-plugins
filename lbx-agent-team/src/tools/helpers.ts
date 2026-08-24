@@ -97,7 +97,7 @@ export async function requireParticipantTeam(stateRoot: string, callerId: string
 /** 锁内重读最新团队；绝不拿外部读到的陈旧快照写回（Task 5 评审）。 */
 export async function requireFreshTeam(stateRoot: string, teamId: string): Promise<TeamState> {
   const fresh = await readTeam(stateRoot, teamId)
-  if (!fresh) throw new Error(`team "${teamId}" is no longer active`)
+  if (!fresh || fresh.status !== 'active') throw new Error(`team "${teamId}" is no longer active`)
   return fresh
 }
 
@@ -151,6 +151,24 @@ export function taskBranch(teamId: string, taskId: string): string {
 /** DSH shell 服务优先；无服务时本地 execFile 兜底（测试/headless）。 */
 export function teamShell(ctx: Context): ShellAdapter {
   return shellAdapter(ctx) ?? localShell()
+}
+
+/**
+ * commit_task 的 cwd 派生：gitWorktrees=false、无成员（captain 任务）或成员从未建
+ * worktree（worktreePath 未回填）时退化为共享工作树（workspace）；否则用该任务
+ * 的确定性 worktree 路径。
+ */
+export function taskCommitCwd(
+  config: ToolsConfig,
+  member: TeamMember | undefined,
+  workspace: string,
+  stateRoot: string,
+  teamId: string,
+  taskId: string,
+): string {
+  if (config.gitWorktrees === false) return workspace
+  if (member === undefined || member.worktreePath === undefined) return workspace
+  return taskWorktreePath(stateRoot, teamId, member.name, taskId)
 }
 
 /** claim 时建 worktree；gitWorktrees=false 时退化为共享工作树（无操作）。 */
@@ -272,6 +290,12 @@ export function assertAttempt(task: TeamTask, attemptId: string | undefined): vo
   }
 }
 
+/** 成员当前持有的未完成任务（claimed / in_progress）——叠单防护。 */
+export function openTaskOf(team: TeamState, memberName: string): TeamTask | undefined {
+  return team.tasks.find((t) =>
+    t.assignee === memberName && (t.status === 'claimed' || t.status === 'in_progress'))
+}
+
 /** 任务退回共享池：assignee=pool、pending、attempt 失效、dedicated 解除。 */
 export function requeueTask(task: TeamTask): void {
   task.assignee = 'pool'
@@ -360,6 +384,10 @@ export async function dispatchInsideLock(
     const task = fresh.tasks.find((t) => t.id === d.taskId)
     const member = fresh.members.find((m) => m.name === d.member && m.status !== 'removed')
     if (task === undefined || member === undefined) continue
+    // I4：持有未完成任务（claimed/in_progress）的成员不派发新任务（parked 语义）。
+    // nextDispatch 只选第一个 idle dever，若它被 parked 则本次泵无法推进其他成员
+    // ——必须 break 而非 continue，否则同一 (member, task) 会无限重选。
+    if (openTaskOf(fresh, member.name) !== undefined) break
     if (member.status === 'pending') {
       try {
         await spawnMember(e.ctx, {
@@ -390,7 +418,12 @@ export async function dispatchInsideLock(
   return wakes
 }
 
-/** 锁外唤醒：先落盘任务分配消息（耐久），再 best effort followup。 */
+/**
+ * 锁外唤醒（耐久 + 回滚）：无论队长是否在线，先把任务分配消息 appendMailbox 落盘
+ * （保证消息不丢；队长恢复后成员被任何原因唤醒时都会读到）。队长在线时对每个成员
+ * best effort followup；唤醒失败则回滚该次 claim（任务回 pending、成员回 idle）——
+ * 只回滚本次精确派发（attemptId 匹配），并发队长接手过的任务不动。
+ */
 export async function fireWakes(
   e: ToolEnv,
   signal: AbortSignal,
@@ -401,8 +434,7 @@ export async function fireWakes(
   if (wakes.length === 0) return
   const team = await readTeam(stateRoot, teamId)
   if (team === undefined) return
-  const captain = liveCaptain(e.ctx, team)
-  if (captain === undefined) return
+  // 1) 先落盘：消息在队长在线检查之前写入，保证耐久。
   for (const { member, task } of wakes) {
     if (member.id === '') continue
     const content = taskWakePrompt(stateRoot, teamId, member, task)
@@ -412,7 +444,35 @@ export async function fireWakes(
     } catch (error) {
       e.ctx.logger.warn(`lbx-agent-team: mailbox append for ${member.name} failed: ${String(error)}`)
     }
-    await wakeMember(e.ctx, captain, member.id, content, signal)
+  }
+  // 2) 队长不在线：消息已入队，恢复后重投（成员被唤醒时读邮箱）。
+  const captain = liveCaptain(e.ctx, team)
+  if (captain === undefined) {
+    e.ctx.logger.info(`lbx-agent-team: captain offline; ${wakes.length} task assignment(s) queued in member mailboxes, redelivered on resume`)
+    return
+  }
+  // 3) 在线：唤醒；失败回滚该次 claim。
+  for (const { member, task } of wakes) {
+    if (member.id === '') continue
+    const content = taskWakePrompt(stateRoot, teamId, member, task)
+    const ok = await wakeMember(e.ctx, captain, member.id, content, signal)
+    if (!ok) {
+      e.ctx.logger.warn(`lbx-agent-team: wake of ${member.name} for ${task.id} failed; rolling back the claim`)
+      await withTeamLock(stateRoot, teamId, async () => {
+        const fresh = await readTeam(stateRoot, teamId)
+        if (fresh === undefined || fresh.status !== 'active') return
+        const current = fresh.tasks.find((t) => t.id === task.id)
+        // 只回滚我们的精确派发：attemptId 已被并发接手则不动
+        if (current === undefined || current.attemptId !== task.attemptId) return
+        current.status = 'pending'
+        current.assignee = 'pool'
+        current.attemptId = undefined
+        current.updatedAt = Date.now()
+        const m = fresh.members.find((x) => x.id === member.id && x.status !== 'removed')
+        if (m !== undefined) m.status = 'idle'
+        await writeTeam(stateRoot, fresh)
+      })
+    }
   }
 }
 
@@ -477,6 +537,15 @@ export async function syncMemberStatus(
     const fresh = await readTeam(stateRoot, team.id)
     const member = fresh?.members.find((m) => m.id === agent.id && m.status !== 'removed')
     if (fresh === undefined || member === undefined) return
+    if (status === 'idle' && openTaskOf(fresh, member.name) !== undefined) {
+      // I4：成员 turn 结束但仍持有 claimed/in_progress 任务 → parked（保持 working），
+      // 不派发新任务，直到该任务被提交/转派。
+      if (member.status !== 'working') {
+        member.status = 'working'
+        await writeTeam(stateRoot, fresh)
+      }
+      return
+    }
     const next = status === 'running' ? 'working' : 'idle'
     if (member.status === next) return
     member.status = next

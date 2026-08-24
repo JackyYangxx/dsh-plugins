@@ -18,6 +18,7 @@ import {
   requireCaptainTeam,
   requireFreshTeam,
   requeueTask,
+  resetTaskWorktree,
   stateRootOf,
   workspaceOf,
   withTeamMutation,
@@ -68,7 +69,9 @@ export function registerTeamTools(ctx: Context, config: ToolsConfig): void {
         if (!repo.ok) throw new Error(repo.error ?? 'git required for worktree mode')
       }
       const teamId = sanitizeKey(name)
-      return withTeamLock(stateRoot, teamId, async () => {
+      // M3：per-captain 锁 + per-teamId 锁，防并发 create 双团队/同名覆盖
+      return withTeamLock(stateRoot, `captain:${agent.id}`, async () => {
+        return withTeamLock(stateRoot, teamId, async () => {
         const existing = await readTeam(stateRoot, teamId)
         if (existing) throw new Error(`team "${teamId}" already exists — pick another name or delete it first`)
         const current = await findTeamByCaptain(stateRoot, agent.id)
@@ -94,6 +97,7 @@ export function registerTeamTools(ctx: Context, config: ToolsConfig): void {
         }
         await writeTeam(stateRoot, team)
         return { teamId }
+        })
       })
     },
   }))
@@ -191,6 +195,8 @@ export function registerTeamTools(ctx: Context, config: ToolsConfig): void {
         for (const task of fresh.tasks) {
           if (task.assignee !== member.name) continue
           if (task.status === 'complete' || TERMINAL_TASK_STATUSES.includes(task.status)) continue
+          // I2：先清掉该任务的 worktree + 分支，否则重试 claim 会撞 "branch already exists"
+          await resetTaskWorktree(e, workspace, stateRoot, fresh, member.name, task.id)
           requeueTask(task)
           requeued.push(task.id)
         }
@@ -245,14 +251,15 @@ export function registerTeamTools(ctx: Context, config: ToolsConfig): void {
         }
         fresh.status = 'archived'
         await writeTeam(stateRoot, fresh)
+        // M2：目录移入 archive/ 在锁内完成，与状态归档原子化
+        await mkdir(join(stateRoot, 'archive'), { recursive: true })
+        await rename(join(stateRoot, fresh.id), join(stateRoot, 'archive', fresh.id))
         return { id: fresh.id, name: fresh.name, memberIds: fresh.members.map((m) => m.id).filter((id) => id !== '') }
       })
       const captain = liveCaptain(e.ctx, team)
       for (const id of archived.memberIds) {
         if (captain !== undefined) interruptMember(e.ctx, captain, id)
       }
-      await mkdir(join(stateRoot, 'archive'), { recursive: true })
-      await rename(join(stateRoot, archived.id), join(stateRoot, 'archive', archived.id))
       return { archived: true, teamName: archived.name }
     },
   }))
