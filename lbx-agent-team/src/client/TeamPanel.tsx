@@ -108,6 +108,10 @@ export function TeamPanel({
   // panelSummary takes a mutable task list; the snapshot is readonly, so copy
   // the array at the call boundary (cheap, snapshot-sized).
   const summary = panelSummary({ tasks: [...team.tasks] })
+  // Stable id for the collapsible body; slugified so a hostile teamId cannot
+  // inject invalid idref characters. Rendered (and referenced via
+  // aria-controls) only while the panel is expanded.
+  const bodyId = `lbx-agent-team-${team.teamId.replace(/[^a-zA-Z0-9_-]+/g, '-')}-body`
   return (
     <section
       className={css.panel}
@@ -122,6 +126,7 @@ export function TeamPanel({
           className={css.toggleButton}
           onClick={toggleCollapsed}
           aria-expanded={!isCollapsed}
+          aria-controls={isCollapsed ? undefined : bodyId}
           aria-label={isCollapsed ? `Expand ${team.name}` : `Collapse ${team.name}`}
           title={isCollapsed ? 'Expand' : 'Collapse'}
         >
@@ -135,7 +140,7 @@ export function TeamPanel({
         <SummaryBadges summary={summary} />
       </div>
       {!isCollapsed && (
-        <div className={css.body} data-panel-body>
+        <div className={css.body} id={bodyId} data-panel-body>
           <Roster members={team.members} />
           <TaskList tasks={team.tasks} />
           <DagView tasks={team.tasks} />

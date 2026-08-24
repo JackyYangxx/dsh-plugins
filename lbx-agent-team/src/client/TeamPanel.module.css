@@ -2,7 +2,11 @@
    Pure presentation styles for TeamPanel and its child sections
    (Roster / TaskList / DagView / Issues). Follows the dsh-agent-teams
    reference token vocabulary with hard fallbacks so the panel renders
-   correctly even before the host theme resolves. */
+   correctly even before the host theme resolves.
+
+   Contrast (WCAG AA): every badge uses a tinted background with a fixed
+   darker text color (--dsw-panel-on-tint-*), independent of host token
+   mid-tones, keeping text >= 4.5:1 against the module background. */
 
 .panel {
   /* Bridge the older reference token vocabulary onto the rc.8 palette,
@@ -14,16 +18,22 @@
     var(--dsw-static-neutral-bluish-300, #cfd3d6)
   );
   --dsw-alias-bg-module: var(--dsw-alias-bg-layer-1, #ffffff);
-  --dsw-alias-bg-module-platform: var(--dsw-alias-bg-layer-2, #f6f7f9);
   --dsw-alias-bg-fill-neutral: var(--dsw-static-neutral-bluish-100, #eef0f4);
-  --dsw-alias-bg-fill-business: var(--dsw-alias-state-business-primary, #4d6bfe);
-  --dsw-alias-bg-fill-success: var(--dsw-alias-state-success-primary, #12a150);
-  --dsw-alias-bg-fill-warning: var(--dsw-alias-state-warn-primary, #e08700);
-  --dsw-alias-bg-fill-danger: var(--dsw-alias-state-error-primary, #e5484d);
   --dsw-alias-state-success: var(--dsw-alias-state-success-primary, #12a150);
   --dsw-alias-state-warning: var(--dsw-alias-state-warn-primary, #e08700);
   --dsw-alias-state-danger: var(--dsw-alias-state-error-primary, #e5484d);
-  --dsw-alias-label-on-fill: var(--dsw-alias-label-primary-inverted, #ffffff);
+
+  /* Fixed darker badge text — independent of host mid-tones (WCAG AA
+     >= 4.5:1 on the module background / tint surfaces). */
+  --dsw-panel-on-tint-business: #2748d4;
+  --dsw-panel-on-tint-success: #0a6b2f;
+  --dsw-panel-on-tint-warning: #8a5200;
+  --dsw-panel-on-tint-danger: #a01f24;
+
+  /* Neutral text tokens with dark fallbacks. */
+  --dsw-panel-label-primary: var(--dsw-alias-label-primary, #1b2430);
+  --dsw-panel-label-secondary: var(--dsw-alias-label-secondary, #3d4657);
+  --dsw-panel-label-tertiary: var(--dsw-alias-label-tertiary, #5b6472);
 
   display: flex;
   flex-direction: column;
@@ -33,7 +43,7 @@
   border: 1px solid color-mix(in srgb, var(--dsw-alias-line-strong) 62%, transparent);
   border-radius: 12px;
   background: var(--dsw-alias-bg-module);
-  color: var(--dsw-alias-label-primary);
+  color: var(--dsw-panel-label-primary);
 }
 
 /* Collapsed panel keeps the header + summary strip only. */
@@ -62,18 +72,18 @@
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--dsw-panel-label-tertiary);
   cursor: pointer;
   transition: background-color 120ms ease, color 120ms ease;
 }
 
 .toggleButton:hover {
   background: var(--dsw-alias-bg-fill-neutral);
-  color: var(--dsw-alias-label-primary);
+  color: var(--dsw-panel-label-primary);
 }
 
 .toggleButton:focus-visible {
-  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline: 2px solid var(--dsw-alias-state-business-primary, #4d6bfe);
   outline-offset: 1px;
 }
 
@@ -90,7 +100,7 @@
   overflow: hidden;
   flex: 1;
   min-width: 0;
-  color: var(--dsw-alias-label-primary);
+  color: var(--dsw-panel-label-primary);
   font-size: 13px;
   font-weight: 600;
   line-height: 18px;
@@ -103,7 +113,7 @@
   padding: 1px 7px;
   border-radius: 4px;
   background: var(--dsw-alias-bg-fill-neutral);
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--dsw-panel-label-tertiary);
   font-size: 9.5px;
   font-weight: 600;
   line-height: 15px;
@@ -134,46 +144,47 @@
   padding: 0 7px;
   border-radius: 999px;
   background: var(--dsw-alias-bg-fill-neutral);
-  color: var(--dsw-alias-label-secondary);
+  color: var(--dsw-panel-label-secondary);
   font-size: 10.5px;
   font-weight: 700;
   line-height: 18px;
   font-variant-numeric: tabular-nums;
 }
 
-.summaryBadge[data-count='0'] {
-  opacity: 0.4;
+.summaryBadgeLabel {
+  font-size: 8.5px;
+  font-weight: 600;
 }
 
 .summaryBadge[data-bucket='total'] {
-  background: var(--dsw-alias-bg-fill-business);
-  color: var(--dsw-alias-label-on-fill);
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary, #4d6bfe) 16%, transparent);
+  color: var(--dsw-panel-on-tint-business);
 }
 
 .summaryBadge[data-bucket='done'] {
   background: color-mix(in srgb, var(--dsw-alias-state-success) 14%, transparent);
-  color: var(--dsw-alias-state-success);
+  color: var(--dsw-panel-on-tint-success);
 }
 
 .summaryBadge[data-bucket='inProgress'] {
-  background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 14%, transparent);
-  color: var(--dsw-alias-state-business-primary);
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary, #4d6bfe) 14%, transparent);
+  color: var(--dsw-panel-on-tint-business);
 }
 
 .summaryBadge[data-bucket='inReview'] {
   background: color-mix(in srgb, var(--dsw-alias-state-warning) 14%, transparent);
-  color: var(--dsw-alias-state-warning);
+  color: var(--dsw-panel-on-tint-warning);
 }
 
 .summaryBadge[data-bucket='failed'] {
   background: color-mix(in srgb, var(--dsw-alias-state-danger) 14%, transparent);
-  color: var(--dsw-alias-state-danger);
+  color: var(--dsw-panel-on-tint-danger);
 }
 
-.summaryBadgeLabel {
-  font-size: 8.5px;
-  font-weight: 500;
-  opacity: 0.85;
+/* Zero counts: mute the background only — the text stays readable. */
+.summaryBadge[data-count='0'] {
+  background: color-mix(in srgb, var(--dsw-alias-bg-fill-neutral) 55%, transparent);
+  color: var(--dsw-panel-label-tertiary);
 }
 
 /* scrollable content body with a capped height (tighter on narrow screens) */
@@ -225,14 +236,14 @@
 }
 
 .sectionTitle {
-  color: var(--dsw-alias-label-secondary);
+  color: var(--dsw-panel-label-secondary);
   font-size: 11px;
   font-weight: 600;
   line-height: 16px;
 }
 
 .sectionCount {
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--dsw-panel-label-tertiary);
   font-size: 10px;
   line-height: 15px;
   font-variant-numeric: tabular-nums;
@@ -240,7 +251,7 @@
 
 .emptyHint {
   margin: 0;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--dsw-panel-label-tertiary);
   font-size: 10.5px;
   line-height: 15px;
 }
@@ -266,7 +277,7 @@
 }
 
 .memberRow[data-activity='working'] {
-  background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 7%, var(--dsw-alias-bg-module));
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary, #4d6bfe) 7%, var(--dsw-alias-bg-module));
 }
 
 .memberRow[data-status='removed'] {
@@ -275,7 +286,7 @@
 
 .memberName {
   overflow: hidden;
-  color: var(--dsw-alias-label-primary);
+  color: var(--dsw-panel-label-primary);
   font-size: 11px;
   font-weight: 600;
   line-height: 16px;
@@ -289,7 +300,7 @@
   padding: 0 6px;
   border-radius: 4px;
   background: var(--dsw-alias-bg-fill-neutral);
-  color: var(--dsw-alias-label-secondary);
+  color: var(--dsw-panel-label-secondary);
   font-size: 9px;
   font-weight: 600;
   line-height: 15px;
@@ -306,7 +317,7 @@
   padding: 0 6px;
   border-radius: 4px;
   background: var(--dsw-alias-bg-fill-neutral);
-  color: var(--dsw-alias-label-secondary);
+  color: var(--dsw-panel-label-secondary);
   font-size: 9px;
   font-weight: 600;
   line-height: 15px;
@@ -314,23 +325,23 @@
 }
 
 .statusBadge[data-status='working'] {
-  background: var(--dsw-alias-bg-fill-business);
-  color: var(--dsw-alias-label-on-fill);
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary, #4d6bfe) 14%, transparent);
+  color: var(--dsw-panel-on-tint-business);
 }
 
 .statusBadge[data-status='pending'] {
   background: color-mix(in srgb, var(--dsw-alias-state-warning) 14%, transparent);
-  color: var(--dsw-alias-state-warning);
+  color: var(--dsw-panel-on-tint-warning);
 }
 
 .statusBadge[data-status='idle'] {
   background: var(--dsw-alias-bg-fill-neutral);
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--dsw-panel-label-tertiary);
 }
 
 .statusBadge[data-status='removed'] {
   background: transparent;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--dsw-panel-label-tertiary);
   text-decoration: line-through;
 }
 
@@ -360,7 +371,7 @@
 
 .taskId {
   flex: none;
-  color: var(--dsw-alias-state-business-primary);
+  color: var(--dsw-panel-on-tint-business);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 9.5px;
   font-weight: 700;
@@ -369,7 +380,7 @@
 
 .taskSubject {
   overflow: hidden;
-  color: var(--dsw-alias-label-primary);
+  color: var(--dsw-panel-label-primary);
   font-size: 10.5px;
   line-height: 15px;
   text-overflow: ellipsis;
@@ -379,7 +390,7 @@
 .taskAssignee {
   overflow: hidden;
   max-width: 90px;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--dsw-panel-label-tertiary);
   font-size: 9px;
   line-height: 14px;
   text-overflow: ellipsis;
@@ -391,7 +402,7 @@
   padding: 0 6px;
   border-radius: 4px;
   background: var(--dsw-alias-bg-fill-neutral);
-  color: var(--dsw-alias-label-secondary);
+  color: var(--dsw-panel-label-secondary);
   font-size: 8.5px;
   font-weight: 700;
   line-height: 15px;
@@ -399,39 +410,39 @@
 }
 
 .stageBadge[data-stage='working'] {
-  background: var(--dsw-alias-bg-fill-business);
-  color: var(--dsw-alias-label-on-fill);
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary, #4d6bfe) 14%, transparent);
+  color: var(--dsw-panel-on-tint-business);
 }
 
 .stageBadge[data-stage='review'] {
-  background: var(--dsw-alias-bg-fill-warning);
-  color: var(--dsw-alias-label-on-fill);
+  background: color-mix(in srgb, var(--dsw-alias-state-warning) 14%, transparent);
+  color: var(--dsw-panel-on-tint-warning);
 }
 
 .stageBadge[data-stage='approved'],
 .stageBadge[data-stage='committed'] {
-  background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 14%, transparent);
-  color: var(--dsw-alias-state-business-primary);
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary, #4d6bfe) 14%, transparent);
+  color: var(--dsw-panel-on-tint-business);
 }
 
 .stageBadge[data-stage='tested'] {
   background: color-mix(in srgb, var(--dsw-alias-state-success) 14%, transparent);
-  color: var(--dsw-alias-state-success);
+  color: var(--dsw-panel-on-tint-success);
 }
 
 .stageBadge[data-stage='done'] {
-  background: var(--dsw-alias-bg-fill-success);
-  color: var(--dsw-alias-label-on-fill);
+  background: color-mix(in srgb, var(--dsw-alias-state-success) 14%, transparent);
+  color: var(--dsw-panel-on-tint-success);
 }
 
 .stageBadge[data-stage='failed'] {
-  background: var(--dsw-alias-bg-fill-danger);
-  color: var(--dsw-alias-label-on-fill);
+  background: color-mix(in srgb, var(--dsw-alias-state-danger) 14%, transparent);
+  color: var(--dsw-panel-on-tint-danger);
 }
 
 .stageBadge[data-stage='cancelled'] {
   background: transparent;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--dsw-panel-label-tertiary);
   text-decoration: line-through;
 }
 
@@ -471,7 +482,7 @@
 
 .dagNodeId {
   flex: none;
-  color: var(--dsw-alias-label-primary);
+  color: var(--dsw-panel-label-primary);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 9.5px;
   font-weight: 700;
@@ -480,7 +491,7 @@
 
 .dagNodeSubject {
   overflow: hidden;
-  color: var(--dsw-alias-label-secondary);
+  color: var(--dsw-panel-label-secondary);
   font-size: 10px;
   line-height: 14px;
   text-overflow: ellipsis;
@@ -498,7 +509,7 @@
 
 .dagDependsLabel {
   flex: none;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--dsw-panel-label-tertiary);
   font-size: 9px;
   line-height: 14px;
 }
@@ -508,7 +519,7 @@
   padding: 0 5px;
   border-radius: 4px;
   background: var(--dsw-alias-bg-fill-neutral);
-  color: var(--dsw-alias-label-secondary);
+  color: var(--dsw-panel-label-secondary);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 8.5px;
   font-weight: 600;
@@ -549,7 +560,7 @@
   padding: 0 6px;
   border-radius: 4px;
   background: var(--dsw-alias-bg-fill-neutral);
-  color: var(--dsw-alias-label-secondary);
+  color: var(--dsw-panel-label-secondary);
   font-size: 8.5px;
   font-weight: 700;
   line-height: 15px;
@@ -557,28 +568,28 @@
 }
 
 .severityBadge[data-severity='BLOCKER'] {
-  background: var(--dsw-alias-bg-fill-danger);
-  color: var(--dsw-alias-label-on-fill);
+  background: color-mix(in srgb, var(--dsw-alias-state-danger) 14%, transparent);
+  color: var(--dsw-panel-on-tint-danger);
 }
 
 .severityBadge[data-severity='HIGH'] {
-  background: var(--dsw-alias-bg-fill-warning);
-  color: var(--dsw-alias-label-on-fill);
+  background: color-mix(in srgb, var(--dsw-alias-state-warning) 14%, transparent);
+  color: var(--dsw-panel-on-tint-warning);
 }
 
 .severityBadge[data-severity='MEDIUM'] {
-  background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 14%, transparent);
-  color: var(--dsw-alias-state-business-primary);
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary, #4d6bfe) 14%, transparent);
+  color: var(--dsw-panel-on-tint-business);
 }
 
 .severityBadge[data-severity='LOW'] {
   background: var(--dsw-alias-bg-fill-neutral);
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--dsw-panel-label-tertiary);
 }
 
 .issueTitle {
   overflow: hidden;
-  color: var(--dsw-alias-label-primary);
+  color: var(--dsw-panel-label-primary);
   font-size: 10.5px;
   line-height: 15px;
   text-overflow: ellipsis;
@@ -587,7 +598,7 @@
 
 .issueStatus {
   flex: none;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--dsw-panel-label-tertiary);
   font-size: 9px;
   font-weight: 600;
   line-height: 14px;
@@ -595,7 +606,7 @@
 }
 
 .issueStatus[data-status='open'] {
-  color: var(--dsw-alias-state-warning);
+  color: var(--dsw-panel-on-tint-warning);
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -5,13 +5,18 @@
  * Tasks are rendered as an indented dependency list: the indentation depth is
  * the longest dependency chain above a task (roots first), and each row lists
  * its dependency ids as chips so the graph reads top-down like a pipeline.
- * The layout projections (`dagDepths` / `orderedDagEntries`) are pure
- * functions so they can be unit-tested without rendering.
+ * The layout projections live in `dag-layout.ts` (no CSS/DOM dependency) and
+ * are re-exported here so both the component and plain `node --test` imports
+ * share one implementation.
  */
 
 import type { CSSProperties } from 'react'
+import { dagDepths, orderedDagEntries, type DagDepthEntry } from './dag-layout.ts'
 import type { ActivityTask } from './activity-monitor.ts'
 import css from './TeamPanel.module.css'
+
+export { dagDepths, orderedDagEntries }
+export type { DagDepthEntry }
 
 export interface DagViewProps {
   /** Task rows in host snapshot order. */
@@ -22,57 +27,12 @@ export interface DagViewProps {
   readonly maxDepth?: number
 }
 
-/** One ordered row of the dependency list. */
-export interface DagDepthEntry {
-  readonly task: ActivityTask
-  /** Longest dependency-chain depth; 0 = no upstream dependencies. */
-  readonly depth: number
-}
-
-/**
- * Pure: longest dependency-chain depth per task id. Cycle-safe — a cycle
- * yields the bounded partial depth instead of recursing forever, so malformed
- * host data cannot hang the render.
- */
-export function dagDepths(tasks: readonly ActivityTask[]): ReadonlyMap<string, number> {
-  const byId = new Map<string, ActivityTask>()
-  for (const task of tasks) byId.set(task.id, task)
-  const memo = new Map<string, number>()
-  const visiting = new Set<string>()
-  const depthOf = (id: string): number => {
-    const cached = memo.get(id)
-    if (cached !== undefined) return cached
-    const task = byId.get(id)
-    if (task === undefined) return 0
-    if (visiting.has(id)) return 0
-    visiting.add(id)
-    let depth = 0
-    for (const dependency of task.dependencies) {
-      const candidate = depthOf(dependency) + 1
-      if (candidate > depth) depth = candidate
-    }
-    visiting.delete(id)
-    memo.set(id, depth)
-    return depth
-  }
-  for (const task of tasks) depthOf(task.id)
-  return memo
-}
-
-/** Pure: tasks ordered roots-first for the indented list. */
-export function orderedDagEntries(tasks: readonly ActivityTask[]): DagDepthEntry[] {
-  const depths = dagDepths(tasks)
-  return [...tasks]
-    .map((task) => ({ task, depth: depths.get(task.id) ?? 0 }))
-    .sort((left, right) =>
-      left.depth - right.depth
-      || left.task.id.localeCompare(right.task.id, 'en', { numeric: true }))
-}
-
 const DAG_INDENT_PER_LEVEL = 14
 
-/** Dependency list: tasks indented by upstream depth, dependency ids as chips. */
-export function DagView({ tasks, caption = 'Dependencies', maxDepth = 8 }: DagViewProps) {
+/** Dependency list: tasks indented by upstream depth, dependency ids as chips.
+ *  The section count is the number of tasks that carry dependencies (the ids
+ *  the list actually renders as chip rows), not the number of edges. */
+export function DagView({ tasks, caption = 'Task dependencies', maxDepth = 8 }: DagViewProps) {
   const entries = orderedDagEntries(tasks)
   const byId = new Map<string, ActivityTask>()
   for (const task of tasks) byId.set(task.id, task)
@@ -81,7 +41,7 @@ export function DagView({ tasks, caption = 'Dependencies', maxDepth = 8 }: DagVi
     <section className={css.section} data-panel-section="dag">
       <header className={css.sectionHead}>
         <span className={css.sectionTitle}>{caption}</span>
-        <span className={css.sectionCount}>{withDependencies.length}</span>
+        <span className={css.sectionCount} title="tasks with dependencies">{withDependencies.length}</span>
       </header>
       {entries.length === 0
         ? <p className={css.emptyHint}>No tasks yet.</p>
