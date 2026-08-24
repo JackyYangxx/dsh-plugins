@@ -13,10 +13,10 @@
 | Step 1 tarball 安装（`dsh plugin --profile web add <tgz>`） | ✅ 通过（无 peer 安装、无冲突） |
 | Step 1 断言（manifest 依赖 + `dsh.profile.bundles` + dump-config 插件层） | ✅ 通过 |
 | Step 1 exports 解析（`.`、`./client`、`./cordis.patch.yml`、`./package.json`） | ✅ 通过 |
-| Step 1 启动冒烟（headless boot：HTTP 200 + `__DSH_BOOT__` entry + client route） | ✅ 通过 |
+| Step 1 启动冒烟（无浏览器启动 --no-open：HTTP 200 + `__DSH_BOOT__` entry + client route） | ✅ 通过 |
 | Step 2 git 安装（`git+file://` 临时仓库，含强制提交的 lib/） | ✅ 通过 |
 | Step 2 断言 + exports + 启动冒烟 | ✅ 通过 |
-| Step 3 包完整性（files 列表逐项） | ⚠️ lib/cordis.patch.yml 存在；assets/、README.md、README_ZH.md 缺失（记录如下） |
+| Step 3 包完整性（files 列表逐项） | ⚠️ lib/、cordis.patch.yml 存在；assets/、README.md、README_ZH.md 缺失（记录如下） |
 | 插件自带 verify-composition.mjs | ✅ 全部组合检查通过 |
 
 两路径安装结果**完全一致**（profile manifest 结构、bundle 层、dump-config 层、client 注册、启动 wiring 相同）。
@@ -91,7 +91,7 @@ dump-config 插件层（`DSH_HOME="$H1" dsh --profile web --dump-config`，exit 
 - host bundle `lib/index.js`、client bundle `lib/client.js` 均存在；client bundle 注册 id = `"lbx-agent-team"`（`__ModuleLoader__.load({ id: "lbx-agent-team", ...`）✅。
 - 静态资源：`assets/` 不存在——插件源码明确注释"intentionally omitted: the plugin ships no assets/ directory yet"（src/index.ts:354 / lib/index.js:266），符合预期，无缺失引用。✅
 
-### 启动冒烟（headless 可验证范围内）
+### 启动冒烟（无浏览器启动 --no-open）
 
 ```bash
 DSH_HOME="$H1" dsh --profile web --host 127.0.0.1 --port 3092 --no-open &
@@ -144,6 +144,23 @@ DSH_HOME="$H2" dsh plugin --profile web add git+file:///tmp/lbx-verify/git-repo
 - 4 个 exports 全部解析 ✅；host/client bundle 存在 ✅；client bundle 注册 id = `lbx-agent-team` ✅。
 - 启动冒烟：HTTP 200、`__DSH_BOOT__` entry（inject 一致）、`/plugins/lbx-agent-team/client.js` 200 ✅。
 
+### 反例实测：git 仓库不含 lib/ 的真实失败模式
+
+为验证 concern 1 的失败断言，构造第二个临时 git 仓库（**不含 lib/**，仅 package.json / cordis.patch.yml / src / scripts / test / docs / tsconfig / pnpm-lock.yaml），提交 c5da6ad 后按同样方式安装（`git+file://`）：
+
+- `dsh plugin add` **成功**：pnpm 安装（files 白名单中 `lib` 在仓库不存在 → 静默跳过），reconcile 仍把插件加入 `dsh.profile.bundles`（patch 存在）。
+- `dsh --profile web --dump-config` **成功（exit 0）**：插件层照常渲染——dump-config 只组合 patch YAML，从不 import `lib/index.js`。**此前推断的"dump-config fail loud"不成立，已按实测修正。**
+- `dsh --profile web` **启动失败（exit 非 0，无 HTTP 服务）**，真实错误（节选）：
+
+```text
+Error: dsh: plugin tree failed to load: failed to apply loader entry include (cordis:include):
+  failed to import loader entry lbx-agent-team (lbx-agent-team):
+  Cannot find module '.../lbx-agent-team/lib/index.js' imported from ...
+Error [ERR_MODULE_NOT_FOUND]: Cannot find module '.../lbx-agent-team/lib/index.js'
+```
+
+**结论：** 缺 lib/ 的破坏点是**启动/插件树加载**（`ERR_MODULE_NOT_FOUND`），安装与 dump-config 均无预警——"静默安装、启动才炸"的隐蔽形态。建议 Task 21 故障排查章节收录该错误文本与排查路径（`ls ${profile}/node_modules/lbx-agent-team/lib` 是否为空即定位）。
+
 ## Step 3：包完整性（files 列表逐项）
 
 ```jsonc
@@ -165,7 +182,15 @@ DSH_HOME="$H2" dsh plugin --profile web add git+file:///tmp/lbx-verify/git-repo
 
 ## 发现的问题 / 关注点（CONCERNS）
 
-1. **lib/ 的 git 分发问题（本路径最大关注点，需长期决策）：** `lib/` 被 `.gitignore` 忽略，git 安装（`git+file://` 或未来 `github:<owner>/<repo>`）拿不到构建产物，exports 指向的 `lib/index.js`/`lib/client.js` 会缺失、`--dump-config` fail loud。本次以 `git add -f lib`（或复制构建产物入临时仓库）绕过并验证通过。**建议**：正式发布前二选一——(a) 把 lib/ 移出 .gitignore（源码仓库直接含构建产物，最符合"git 分发即用"）；或 (b) 增加 `prepare` 脚本 + 在安装文档中要求 profile `pnpm-workspace.yaml` 配 `allowBuilds`（SKILL.md §8.4 前提），git 安装时自动 build。npm tarball 路径不受影响（files 已含 lib）。
+1. **lib/ 的 git 分发问题（本路径最大关注点，需长期决策）：** `lib/` 被 `.gitignore` 忽略，git 安装（`git+file://` 或未来 `github:<owner>/<repo>`）拿不到构建产物。**实测失败模式**（见 Step 2 反例实测）：安装与 reconcile 均成功、`--dump-config` 也不报错（只组合 patch YAML、不 import 模块），失败发生在**启动/插件树加载**——`Error [ERR_MODULE_NOT_FOUND]: Cannot find module '.../lbx-agent-team/lib/index.js'`；此前报告推断的"dump-config fail loud"不准确，已按实测修正。npm tarball 路径不受影响（files 已含 lib）。正式发布前需在以下方案中决策：
+
+| 方案 | 优点 | 代价 / 风险 |
+|---|---|---|
+| (a) 提交 lib/（从 .gitignore 移除） | git 安装开箱即用、零额外步骤；安装内容确定（= 提交内容），不依赖工具链/registry | diff 噪音（每次源码改动伴随大体积构建产物 diff）；生成文件合并冲突；**陈旧产物坑**——忘重建就提交会"源码新、lib/ 旧"；需 freshness guard（如 CI 门禁 `pnpm build && git diff --exit-code lib`，或构建版本戳） |
+| (b) prepare 脚本 + allowBuilds | 仓库保持干净（不提交生成物）；git 安装时自动 build | **install 需完整构建工具链**（tsc / tsdown / react 类型…）；git 依赖的 devDependencies 不随依赖安装（包管理器标准行为），prepare 需自行获取工具链（npx/pnpm dlx）→ **git 路径重新依赖 registry**，与本报告 concern 5"无 registry 依赖"直接矛盾；allowBuilds 是**每个消费者 profile 的手动安全门禁**（`dsh plugin` 对 git 插件安装失败时会提示手动添加），从零安装不再"零步骤" |
+| (c) 发布快照分发（tag / Release tarball 含 lib/） | 开发仓库保持干净；按 tag 安装内容确定；无 build 步骤、无 registry、无 allowBuilds；tarball 附件同时覆盖 npm 路径（pack 产物本就含 lib/） | 需要发布纪律（发布脚本：build → 组装可发布内容 → 将含 lib/ 的快照提交 release 分支/tag，或把 tarball 挂 GitHub Release）；安装指令带 `#<tag>` 片段；陈旧风险收窄到发布时刻（freshness 由发布脚本保证） |
+
+**给 Task 21 的可执行推荐：** 主选 **(c) 发布快照分发**——新增发布脚本（`pnpm build` → rsync 可发布内容 → `git add -f lib` 提交 release 分支或打 tag，或直接产出 `pnpm pack` tarball 挂 GitHub Release），README 安装命令写作 `dsh plugin --profile <p> add github:<owner>/<repo>#<tag>`（或 tarball URL）。仓库暂私有、暂无发布机制时，回退 **(a) 提交 lib/** 并配 CI freshness guard（`pnpm build && git diff --exit-code lib`）——这是当前唯一的零步骤路径（本次 git 路径验证即此模式）。**(b) 不建议**：除非未来能无 registry 构建（如 vendored 工具链），否则它把 registry 依赖与逐消费者手动门禁重新引入 git 路径，与插件"从零安装零依赖"的验证结论相悖。
 2. **README 缺失（Task 21 覆盖）：** `README.md`/`README_ZH.md` 未创建，files 列表中两个条目缺失，npm pack 静默跳过。npm 发布时 registry 页面将无 README，且从零安装文档（README 中的安装命令）尚未就位——Task 21 完成后需回归一次本验证（§8.4 要求"按 README 的精确命令安装"）。
 3. **assets/ 占位条目：** 插件当前无静态资源（源码注释明确有意省略），files 里的 `assets` 是前向占位，pnpm pack 静默跳过、无副作用。可在 assets 落地前移除该条目，或保留并在文档说明。
 4. **peer 双实例组合（继承 Task 19 已知项，非阻塞）：** 插件 peerDependencies 全部 optional + profile `autoInstallPeers: false` → 安装零 peer、零冲突；运行时 `@deepseek-ai/dsh-*` 由宿主 CLI 闭包 flat-module fallback 解析（rc.2），插件 devDeps 为 rc.8。本次仅做组合/dump/启动冒烟，未跑真实 LLM 会话（Task 19 已覆盖真实组合 E2E）；双实例风险点记录在 Task 19 报告中。
