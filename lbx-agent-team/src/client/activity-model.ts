@@ -60,7 +60,7 @@ export interface PanelSummary {
 
 /** Stage → summary bucket. claimed maps to 'working' (a claimed task is being
  *  handled), so only 'pending' lands in waiting. */
-const BUCKET_OF: Record<StageLabel, keyof PanelSummary> = {
+const BUCKET_OF: Record<StageLabel, Exclude<keyof PanelSummary, 'total'>> = {
   pending: 'waiting',
   working: 'inProgress',
   review: 'inReview',
