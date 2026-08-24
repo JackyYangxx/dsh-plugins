@@ -178,6 +178,35 @@
   letter-spacing: 0.02em;
 }
 
+
+/* Reopen badge shown while the panel is collapsed but activity exists. */
+.panelBadge {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 2147483000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--dsw-alias-state-business-primary, #4d6bfe);
+  color: var(--dsw-alias-label-on-fill, #ffffff);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 30px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.24);
+  cursor: pointer;
+}
+
+.panelBadge:focus-visible {
+  outline: 2px solid var(--dsw-alias-label-primary, #1b2430);
+  outline-offset: 2px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .panelClose,
   .panelDot {

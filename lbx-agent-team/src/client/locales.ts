@@ -17,6 +17,7 @@ export const zh = {
   'panel.aria': 'LBX 团队活动面板',
   'panel.countAria': '{count} 个团队',
   'panel.close': '收起活动面板',
+  'panel.reopenAria': '{count} 个团队活动，点击展开',
   'panel.archived': '已结束 · 历史归档',
   'panel.empty': '暂无团队活动',
   // Summary bucket labels (panelSummary projection).
@@ -71,6 +72,7 @@ export const en = {
   'panel.aria': 'LBX team activity panel',
   'panel.countAria': '{count} teams',
   'panel.close': 'Collapse activity panel',
+  'panel.reopenAria': '{count} team activities — click to open',
   'panel.archived': 'Ended · Archived history',
   'panel.empty': 'No team activity',
   'bucket.total': 'Total',

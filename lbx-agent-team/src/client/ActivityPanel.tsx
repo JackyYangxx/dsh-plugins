@@ -18,7 +18,7 @@
  * and every subscription/polling controller is released on unmount.
  */
 
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import type { ObservableSnapshot, SessionListState } from '@deepseek-ai/dsh-client-runtime/client'
 import {
   getActivityMonitorTargetsSnapshot,
@@ -103,13 +103,35 @@ export function ActivityPanel({ sessionsList, t }: ActivityPanelProps): ReactNod
   )
   const visibleCount = visibleTeams.length + visibleArchived.length
 
+  // User-closed gate: once the user manually collapses the panel (X or a
+  // second Escape) it stays closed until activity appears again (0 -> >0
+  // transition) or the current session changes. lastHadActivityRef also
+  // implements the settle window: activity that already exists at first paint
+  // (restored sessions) does not auto-open the panel; only newly appearing
+  // activity does.
+  const userClosedRef = useRef(false)
+  const lastHadActivityRef = useRef(visibleCount > 0)
+  const currentRef = useRef(current)
+
   // Auto-expand once activity appears; fold back after the grace period once
-  // every team of the current session has ended.
+  // every team of the current session has ended. open stays in the deps so
+  // the autoclose timer can react to a manual close, but setOpen(true) is
+  // gated: it never fires while the user has closed the panel (C1).
   useEffect(() => {
-    if (visibleCount > 0) {
-      setOpen(true)
+    const hadActivity = visibleCount > 0
+    if (hadActivity) {
+      if (!lastHadActivityRef.current) {
+        // 0 -> >0 transition: fresh activity resets the user gate.
+        userClosedRef.current = false
+      }
+      lastHadActivityRef.current = true
+      if (!userClosedRef.current) {
+        setOpen(true)
+      }
       return
     }
+    lastHadActivityRef.current = false
+    userClosedRef.current = false
     if (!open) return
     const timer = setTimeout(() => {
       setOpen(false)
@@ -117,6 +139,18 @@ export function ActivityPanel({ sessionsList, t }: ActivityPanelProps): ReactNod
     }, AUTOCLOSE_GRACE_MS)
     return () => { clearTimeout(timer) }
   }, [visibleCount, open])
+
+  // Session navigation: leaving the current session collapses the panel
+  // immediately (no 2s empty-state linger) and resets the open gates so the
+  // next session's activity is treated as fresh (I1).
+  useLayoutEffect(() => {
+    if (currentRef.current === current) return
+    currentRef.current = current
+    userClosedRef.current = false
+    lastHadActivityRef.current = false
+    setOpen(false)
+    setCollapsedKeys(new Set())
+  }, [current])
 
   const toggleTeam = useCallback((key: string): void => {
     setCollapsedKeys((previous) => {
@@ -128,8 +162,14 @@ export function ActivityPanel({ sessionsList, t }: ActivityPanelProps): ReactNod
   }, [])
 
   const closePanel = useCallback((): void => {
+    userClosedRef.current = true
     setOpen(false)
     setCollapsedKeys(new Set())
+  }, [])
+
+  const reopenPanel = useCallback((): void => {
+    userClosedRef.current = false
+    setOpen(true)
   }, [])
 
   // Keyboard collapse: Escape folds every expanded team; when all teams are
@@ -140,21 +180,47 @@ export function ActivityPanel({ sessionsList, t }: ActivityPanelProps): ReactNod
   )
   const allCollapsed = visibleKeys.size > 0
     && [...visibleKeys].every((key) => collapsedKeys.has(key))
+  // Escape handling is registered once per open with stable refs so the 1Hz
+  // snapshot refresh never re-registers the listener; Escape also
+  // preventDefaults so it does not fight the host shell (M4).
+  const allCollapsedRef = useRef(allCollapsed)
+  const visibleKeysRef = useRef(visibleKeys)
+  const closePanelRef = useRef(closePanel)
+  allCollapsedRef.current = allCollapsed
+  visibleKeysRef.current = visibleKeys
+  closePanelRef.current = closePanel
   useEffect(() => {
     if (!open) return
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key !== 'Escape') return
-      if (allCollapsed) {
-        closePanel()
+      event.preventDefault()
+      if (allCollapsedRef.current) {
+        closePanelRef.current()
         return
       }
-      setCollapsedKeys(visibleKeys)
+      setCollapsedKeys(visibleKeysRef.current)
     }
     window.addEventListener('keydown', onKeyDown)
     return () => { window.removeEventListener('keydown', onKeyDown) }
-  }, [open, allCollapsed, visibleKeys, closePanel])
+  }, [open])
 
-  if (!open) return null
+  if (!open) {
+    // Collapsed: show a small reopen badge while this session still has
+    // activity, so the panel is never unreachable after a manual close (I2).
+    if (visibleCount === 0) return null
+    return (
+      <button
+        type="button"
+        className={css.panelBadge}
+        onClick={reopenPanel}
+        aria-label={t('panel.reopenAria', { count: visibleCount })}
+        title={t('panel.reopenAria', { count: visibleCount })}
+        data-lbx-agent-team-badge
+      >
+        {visibleCount}
+      </button>
+    )
+  }
 
   const busy = visibleTeams.some((team) =>
     team.members.some((member) => member.activity === 'working'),
