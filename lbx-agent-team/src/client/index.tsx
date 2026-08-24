@@ -1,7 +1,7 @@
-import type { Context } from '@deepseek-ai/cordis'
+import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 
 export const inject = ['slots']
 
-export function apply(ctx: Context): void {
-  // Minimal client entry; filled by later tasks.
+export function apply(_ctx: ClientContext): void {
+  // Task 18 在此注册面板 slot
 }
