@@ -43,7 +43,7 @@ export function apply(ctx: ClientContext): void {
     'lbx-agent-team: dictionaries',
   )
   const Panel = ({ t }: PropsLocale<'lbxAgentTeam'>) => (
-    <ActivityPanel sessionsList={ctx.sessions.list} t={t} />
+    <ActivityPanel sessionsList={ctx.sessions.list} t={t} ctx={ctx} />
   )
   ctx.slots.inject('shell.overlay', () => ctx.slots.register({
     name: 'shell.overlay',

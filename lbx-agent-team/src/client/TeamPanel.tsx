@@ -17,7 +17,8 @@
 
 import { useCallback, useId, useState, type ReactNode } from 'react'
 import { panelSummary, type PanelSummary } from './activity-model.ts'
-import type { ActivityTeam } from './activity-monitor.ts'
+import type { ActivityTask, ActivityTeam } from './activity-monitor.ts'
+import type { CaptainAction, ReassignActionOptions } from './action-messages.ts'
 import { enFallbackTranslate, type LbxAgentTeamLocaleKey, type LbxAgentTeamTranslate } from './locales.ts'
 import { DagView } from './DagView.tsx'
 import { Issues } from './Issues.tsx'
@@ -38,6 +39,16 @@ export interface TeamPanelProps {
   readonly headerExtra?: ReactNode
   /** Optional locale translate seat; English fallback when absent. */
   readonly t?: LbxAgentTeamTranslate
+  /** Captain view: pass through to TaskList so per-task action buttons render. */
+  readonly isCaptain?: boolean
+  /** Active member names offered as reassign targets (pool/captain are implicit). */
+  readonly reassignTargets?: readonly string[]
+  /** Captain action click handler; the caller owns message injection. */
+  readonly onAction?: (
+    action: CaptainAction,
+    task: ActivityTask,
+    options?: ReassignActionOptions,
+  ) => void | Promise<boolean>
 }
 
 export interface SummaryBadgesProps {
@@ -103,6 +114,9 @@ export function TeamPanel({
   defaultCollapsed = false,
   headerExtra,
   t,
+  isCaptain = false,
+  reassignTargets,
+  onAction,
 }: TeamPanelProps) {
   const translate = t ?? enFallbackTranslate
   const [internalCollapsed, setInternalCollapsed] = useState(defaultCollapsed)
@@ -153,7 +167,13 @@ export function TeamPanel({
       {!isCollapsed && (
         <div className={css.body} id={bodyId} data-panel-body>
           <Roster members={team.members} t={translate} />
-          <TaskList tasks={team.tasks} t={translate} />
+          <TaskList
+            tasks={team.tasks}
+            t={translate}
+            isCaptain={isCaptain}
+            reassignTargets={reassignTargets}
+            onAction={onAction}
+          />
           <DagView tasks={team.tasks} t={translate} />
           <Issues issues={team.issues} t={translate} />
         </div>

@@ -357,7 +357,8 @@
 
 .taskRow {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  /* 5th track: captain action buttons (M2-B); empty for non-captain views. */
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
   align-items: center;
   gap: 8px;
   min-height: 25px;
@@ -444,6 +445,136 @@
   background: transparent;
   color: var(--dsw-panel-label-tertiary);
   text-decoration: line-through;
+}
+
+/* captain action buttons + inline reassign picker (M2-B) */
+.taskActions {
+  display: inline-flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  align-self: start;
+  padding-top: 2px;
+}
+
+.taskActionButtons {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+}
+
+.actionButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 16px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--dsw-alias-bg-fill-neutral);
+  color: var(--dsw-panel-label-secondary);
+  font-size: 8.5px;
+  font-weight: 700;
+  line-height: 16px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.actionButton:hover {
+  background: color-mix(in srgb, var(--dsw-alias-bg-fill-neutral) 60%, var(--dsw-alias-bg-module));
+}
+
+.actionButton:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary, #4d6bfe);
+  outline-offset: 1px;
+}
+
+.actionButton[data-kind='complete'],
+.actionButton[data-action='complete'] {
+  background: color-mix(in srgb, var(--dsw-alias-state-success) 14%, transparent);
+  color: var(--dsw-panel-on-tint-success);
+}
+
+.actionButton[data-action='complete']:hover {
+  background: color-mix(in srgb, var(--dsw-alias-state-success) 22%, transparent);
+}
+
+.actionButton[data-action='cancel'] {
+  background: color-mix(in srgb, var(--dsw-alias-state-danger) 12%, transparent);
+  color: var(--dsw-panel-on-tint-danger);
+}
+
+.actionButton[data-action='cancel']:hover {
+  background: color-mix(in srgb, var(--dsw-alias-state-danger) 20%, transparent);
+}
+
+.actionButton[data-action='reassign'][data-open='true'] {
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary, #4d6bfe) 16%, transparent);
+  color: var(--dsw-panel-on-tint-business);
+}
+
+/* Transient "sent" checkmark after a successful click. */
+.actionButton[data-sent='true'] {
+  background: color-mix(in srgb, var(--dsw-alias-state-success) 18%, transparent);
+  color: var(--dsw-panel-on-tint-success);
+  cursor: default;
+}
+
+/* Inline reassign target picker */
+.reassignMenu {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 128px;
+  padding: 4px 6px;
+  border: 1px solid color-mix(in srgb, var(--dsw-alias-line-strong) 55%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--dsw-alias-bg-module) 96%, transparent);
+}
+
+.reassignLabel {
+  color: var(--dsw-panel-label-tertiary);
+  font-size: 8.5px;
+  font-weight: 600;
+  line-height: 13px;
+}
+
+.reassignTargets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.reassignTarget {
+  display: inline-flex;
+  align-items: center;
+  max-width: 150px;
+  height: 15px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--dsw-alias-bg-fill-neutral);
+  color: var(--dsw-panel-label-secondary);
+  font-size: 8.5px;
+  font-weight: 600;
+  line-height: 15px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.reassignTarget:hover {
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary, #4d6bfe) 16%, transparent);
+  color: var(--dsw-panel-on-tint-business);
+}
+
+.reassignTarget:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary, #4d6bfe);
+  outline-offset: 1px;
 }
 
 /* dependency list (indent = upstream chain depth) */

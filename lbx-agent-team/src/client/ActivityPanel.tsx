@@ -19,15 +19,22 @@
  */
 
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
-import type { ObservableSnapshot, SessionListState } from '@deepseek-ai/dsh-client-runtime/client'
+import type { ClientContext, ObservableSnapshot, SessionListState } from '@deepseek-ai/dsh-client-runtime/client'
 import {
   getActivityMonitorTargetsSnapshot,
   getActivitySnapshotsSnapshot,
   startActivityPolling,
   subscribeActivityMonitorTargets,
   subscribeActivitySnapshots,
+  type ActivityTask,
   type ActivityTeam,
 } from './activity-monitor.ts'
+import {
+  buildActionMessage,
+  type CaptainAction,
+  type ReassignActionOptions,
+} from './action-messages.ts'
+import { injectCaptainActionMessage } from './action-injector.ts'
 import { TeamPanel } from './TeamPanel.tsx'
 import type { LbxAgentTeamTranslate } from './locales.ts'
 import css from './ActivityPanel.module.css'
@@ -40,6 +47,8 @@ export interface ActivityPanelProps {
   readonly sessionsList: ObservableSnapshot<SessionListState>
   /** Locale translate seat provided by the slot machinery. */
   readonly t: LbxAgentTeamTranslate
+  /** Client root context; drives captain action-message injection (M2-B). */
+  readonly ctx: ClientContext
 }
 
 /** Stable key for one team surface; the status prefix keeps live and archive
@@ -57,7 +66,10 @@ function ChevronDown() {
   )
 }
 
-export function ActivityPanel({ sessionsList, t }: ActivityPanelProps): ReactNode {
+/** How long the injection-failure notice stays visible. */
+const INJECT_FAILURE_MS = 2600
+
+export function ActivityPanel({ sessionsList, t, ctx }: ActivityPanelProps): ReactNode {
   const current = useSyncExternalStore(
     sessionsList.subscribe,
     sessionsList.getSnapshot,
@@ -175,6 +187,32 @@ export function ActivityPanel({ sessionsList, t }: ActivityPanelProps): ReactNod
     setOpen(true)
   }, [])
 
+  // Captain action injection (M2-B): buttons are shown only for the current
+  // session's own captain teams; clicking one builds the directive and sends
+  // it into the captain session as an ordinary queued user message. A failed
+  // injection surfaces a transient notice; the button's optimistic "sent"
+  // state is reverted by the handler's false outcome.
+  const [injectFailedKey, setInjectFailedKey] = useState<string | null>(null)
+  useEffect(() => {
+    if (injectFailedKey === null) return
+    const timer = setTimeout(() => { setInjectFailedKey(null) }, INJECT_FAILURE_MS)
+    return () => { clearTimeout(timer) }
+  }, [injectFailedKey])
+
+  const handleTeamAction = useCallback((
+    action: CaptainAction,
+    task: ActivityTask,
+    team: ActivityTeam,
+    options?: ReassignActionOptions,
+  ): Promise<boolean> => {
+    const message = buildActionMessage(action, task.id, team.name, options)
+    const outcome = injectCaptainActionMessage(ctx, team.captainSessionId, message)
+    void outcome.then((ok) => {
+      if (!ok) setInjectFailedKey(`${action}:${task.id}`)
+    })
+    return outcome
+  }, [ctx])
+
   // Keyboard collapse: Escape folds every expanded team; when all teams are
   // already folded a second Escape closes the panel entirely.
   const visibleKeys = useMemo(
@@ -267,12 +305,20 @@ export function ActivityPanel({ sessionsList, t }: ActivityPanelProps): ReactNod
                 ...visibleArchived.map((team) => ({ team, archived: true })),
               ].map(({ team, archived }) => {
                 const key = teamKey(team)
+                const isCaptain = !archived && team.captainSessionId === current
                 const panel = (
                   <TeamPanel
                     team={team}
                     collapsed={collapsedKeys.has(key)}
                     onToggleCollapsed={() => { toggleTeam(key) }}
                     t={t}
+                    isCaptain={isCaptain}
+                    reassignTargets={isCaptain
+                      ? team.members.filter((member) => member.status !== 'removed').map((member) => member.name)
+                      : undefined}
+                    onAction={isCaptain
+                      ? (action, task, options) => handleTeamAction(action, task, team, options)
+                      : undefined}
                   />
                 )
                 if (!archived) {
@@ -288,6 +334,9 @@ export function ActivityPanel({ sessionsList, t }: ActivityPanelProps): ReactNod
             </>
           )}
       </div>
+      {injectFailedKey !== null && (
+        <p className={css.injectNotice} data-lbx-agent-team-inject-failed>{t('action.injectFailed')}</p>
+      )}
     </aside>
   )
 }

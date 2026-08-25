@@ -61,6 +61,19 @@ export const zh = {
   'severity.LOW': '低',
   'issue.open': '未解决',
   'issue.resolved': '已解决',
+  // Captain action buttons (M2-B).
+  'action.complete': '完成',
+  'action.cancel': '取消',
+  'action.reassign': '转派',
+  'action.reassignTo': '转派给',
+  'action.target.pool': '共享池',
+  'action.target.captain': '队长',
+  'action.sent': '已发送',
+  'action.aria.complete': '完成 {taskId}',
+  'action.aria.cancel': '取消 {taskId}',
+  'action.aria.reassign': '转派 {taskId}',
+  'action.aria.sent': '指令已发送给队长',
+  'action.injectFailed': '指令发送失败，请手动告知队长',
 } satisfies Record<string, string>
 
 /** LbxAgentTeam namespace key union. */
@@ -110,6 +123,18 @@ export const en = {
   'severity.LOW': 'LOW',
   'issue.open': 'Open',
   'issue.resolved': 'Resolved',
+  'action.complete': 'Complete',
+  'action.cancel': 'Cancel',
+  'action.reassign': 'Reassign',
+  'action.reassignTo': 'Reassign to',
+  'action.target.pool': 'Pool',
+  'action.target.captain': 'Captain',
+  'action.sent': 'Sent',
+  'action.aria.complete': 'Complete {taskId}',
+  'action.aria.cancel': 'Cancel {taskId}',
+  'action.aria.reassign': 'Reassign {taskId}',
+  'action.aria.sent': 'Directive sent to the captain',
+  'action.injectFailed': 'Failed to send the directive — tell the captain manually',
 } satisfies Record<LbxAgentTeamLocaleKey, string>
 
 /** Translation function consumed by pure view helpers. */
