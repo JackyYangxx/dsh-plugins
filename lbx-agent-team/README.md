@@ -227,6 +227,7 @@ dsh web                            # then: /lbx-agent-team 实现 docs/specs/xxx
 
 ## Known limitations
 
+- **Shared-worktree commits stage everything (git add -A).** Tasks handled by the captain, by pool devers with `gitWorktrees: false`, or after a failed worktree creation fall back to committing in the shared workspace — a plain `git add -A` there will sweep unrelated untracked files into the commit. Prefer the dedicated-worktree flow; keep the shared tree clean when using the fallbacks (hardening planned in M2).
 - **Not published to npm yet.** Use one of the verified local paths above; `dsh plugin --profile web add lbx-agent-team` from the registry will not work until a future publish.
 - **`lib/` must ship with git installs.** Because `lib/` is git-ignored, a git install without build artifacts installs and `--dump-config` fine but fails at **startup** with `Error [ERR_MODULE_NOT_FOUND]` for `lib/index.js`. Fix: install a tag / Release snapshot that contains `lib/` (recommended), or commit `lib/` for private repos.
 - **Peer dual-instance combination (documented, non-blocking).** The plugin resolves `@deepseek-ai/dsh-*` from its own `node_modules` (devDeps `0.1.0-rc.8`) while the host CLI closure is `0.1.1-rc.2`; all verified flows work, but this dual-instance layout is a risk to re-evaluate before publishing.

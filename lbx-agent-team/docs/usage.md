@@ -289,6 +289,8 @@ dever 成员在 `gitWorktrees` 开启时于 spawn/claim 时创建独立 worktree
 
 ## 已知限制
 
+- **共享工作树提交路径的误收风险**：队长任务 / `gitWorktrees: false` / worktree 创建失败回退时，提交在主工作区执行 `git add -A`，会扫入无关未跟踪文件（Task 19 e2e 曾撞到，见验证记录 CONCERNS #4）。建议优先 worktree 流程；共享树回退路径的暂存收紧计划在 M2。
+
 - **一个队长同一时间只能带一个活动团队。** 必须先结束当前团队才能创建第二个。
 - **状态为文件级持久化，在单个 DSH 进程内串行化。** 多个进程同时修改同一团队不保证一致。
 - **`gitWorktrees` 需要工作区是 git 仓库。** 非 git 仓库时 `create` 报 `workspace is not a git repository — run git init first`；可设 `gitWorktrees: false` 关闭。
