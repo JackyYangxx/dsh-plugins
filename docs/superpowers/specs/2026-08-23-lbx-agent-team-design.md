@@ -186,10 +186,11 @@ interface TeamIssue {
 ├── team.json            # 权威真相（原子写：临时文件 + fsync + rename）
 ├── inbox/<memberName>.jsonl   # 每成员邮箱（torn-tail 恢复）
 ├── worktrees/<member>/  # dever worktree（gitWorktrees: true 时）
+├── artifacts/           # markdown 工件（tasklist/reviews/tests/final-report）
 └── archive/             # 归档团队
 ```
 
-markdown 工件输出到 `<workspace>/docs/lbx-agent-team/<teamId>/`（任务清单 / review 记录 / 测试报告 / 最终验收报告），由 `lbx_agent_team_artifact` 从 JSON 真相确定性生成。
+markdown 工件输出到 `<workspace>/.lbx-agent-team/<teamId>/artifacts/`（由 `lbx_agent_team_artifact` 从 JSON 真相确定性生成；M2-C 后 artifactsDir 配置已移除）（任务清单 / review 记录 / 测试报告 / 最终验收报告），由 `lbx_agent_team_artifact` 从 JSON 真相确定性生成。
 
 ## 5. pipeline 状态机与硬门
 
