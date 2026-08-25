@@ -162,7 +162,6 @@ Defaults work out of the box. A trusted profile can override behavior:
 | `autoRoster` | `true` | register planner/checker/tester automatically at create |
 | `autoDispatch` | `true` | auto-dispatch ready pool tasks to idle devers |
 | `gitWorktrees` | `true` | devers work in isolated git worktrees (needs a git repo) |
-| `artifactsDir` | `docs/lbx-agent-team` | reserved; artifacts currently land in `<stateDir>/<teamId>/artifacts/` |
 | `maxReviewLoop` | `3` | consecutive REQUEST_CHANGES cap — task marked failed once the count reaches this value |
 | `promptSectionOrder` | `117` | usage prompt-section order |
 | `slashCommand` | `true` | register `/lbx-agent-team` + gesture boundary |
@@ -233,7 +232,7 @@ dsh web                            # then: /lbx-agent-team 实现 docs/specs/xxx
 - **`lib/` must ship with git installs.** Because `lib/` is git-ignored, a git install without build artifacts installs and `--dump-config` fine but fails at **startup** with `Error [ERR_MODULE_NOT_FOUND]` for `lib/index.js`. Fix: install a tag / Release snapshot that contains `lib/` (recommended), or commit `lib/` for private repos.
 - **Peer dual-instance combination (documented, non-blocking).** The plugin resolves `@deepseek-ai/dsh-*` from its own `node_modules` (devDeps `0.1.0-rc.8`) while the host CLI closure is `0.1.1-rc.2`; all verified flows work, but this dual-instance layout is a risk to re-evaluate before publishing.
 - **Stale registry mirror (environment).** `registry.npmmirror.com` serves stale `@deepseek-ai` packages (e.g. `dsh-headless@0.0.1-rc.1` with a 404 dependency). Use the official registry or install from local links.
-- **`artifactsDir` is reserved, not wired.** Artifacts are currently written under `<stateDir>/<teamId>/artifacts/`, not `config.artifactsDir`.
+- **`artifactsDir` removed (M2-C).** Artifacts always land under `<stateDir>/<teamId>/artifacts/`; the config field no longer exists.
 - **Headless runs need LLM credentials.** Without an API key configured the session cannot execute for real.
 
 ## Documentation

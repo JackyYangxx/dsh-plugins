@@ -163,7 +163,6 @@ dsh --profile scratch "用 LBX Agent Team 实现 docs/specs/demo.md"
 | `autoRoster` | `true` | create 时自动登记 planner/checker/tester |
 | `autoDispatch` | `true` | 就绪 pool 任务自动派发给 idle dever |
 | `gitWorktrees` | `true` | dever 使用独立 git worktree（需要 git 仓库） |
-| `artifactsDir` | `docs/lbx-agent-team` | 保留项；工件目前实际写入 `<stateDir>/<teamId>/artifacts/` |
 | `maxReviewLoop` | `3` | 连续 REQUEST_CHANGES 上限，达到该次数即置 failed |
 | `promptSectionOrder` | `117` | usage 提示段顺序 |
 | `slashCommand` | `true` | 注册 `/lbx-agent-team` + 手势边界 |
@@ -234,7 +233,7 @@ dsh web                            # 然后：/lbx-agent-team 实现 docs/specs/
 - **git 安装必须带 `lib/`。** 因为 `lib/` 被 .gitignore 忽略，不带构建产物的 git 安装能装成功、`--dump-config` 也不报错，但**启动时**会以 `Error [ERR_MODULE_NOT_FOUND]`（`lib/index.js`）失败。解决：安装包含 `lib/` 的 tag / Release 快照（推荐），或私有仓库提交 `lib/`。
 - **peer 双实例组合（已记录，非阻塞）。** 插件从自身 `node_modules` 解析 `@deepseek-ai/dsh-*`（devDeps `0.1.0-rc.8`），宿主 CLI 闭包为 `0.1.1-rc.2`；已验证流程全部正常，但该双实例布局是发布前需要重新评估的风险点。
 - **registry 镜像陈旧（环境）。** `registry.npmmirror.com` 对 `@deepseek-ai` 包解析出陈旧版本（如 `dsh-headless@0.0.1-rc.1` 依赖 404）。请使用官方 registry 或本地链接安装。
-- **`artifactsDir` 为保留项、尚未接线。** 工件目前写入 `<stateDir>/<teamId>/artifacts/`，而非 `config.artifactsDir`。
+- **`artifactsDir` 已于 M2-C 移除。** 工件固定写入 `<stateDir>/<teamId>/artifacts/`，该配置项已不存在。
 - **headless 运行需要 LLM 凭据。** 未配置 API key 时会话无法真实执行。
 
 ## 文档

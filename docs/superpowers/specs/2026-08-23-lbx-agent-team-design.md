@@ -313,11 +313,12 @@ git 执行走 Cordis shell/bash 服务；profile 无该服务时退化为"插件
     autoRoster: true            # 创建团队自动登记 planner/checker/tester
     autoDispatch: true          # 空闲 pool dever 自动领任务
     gitWorktrees: true          # dever worktree 隔离
-    artifactsDir: docs/lbx-agent-team  # markdown 工件输出
     maxReviewLoop: 3            # REQUEST_CHANGES 连续上限
     promptSectionOrder: 117
     slashCommand: true
 ```
+
+> **已移除（M2-C）：** `artifactsDir` 不再是配置项——工件固定输出到 `stateDir/<teamId>/artifacts/`，与角色 prompt 一致。
 
 ## 12. 分发
 

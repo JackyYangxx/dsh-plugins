@@ -287,7 +287,6 @@ dever 成员在 `gitWorktrees` 开启时于 spawn/claim 时创建独立 worktree
 | `autoRoster` | `true` | create 时自动登记 planner/checker/tester |
 | `autoDispatch` | `true` | 就绪 pool 任务自动派发给 idle dever |
 | `gitWorktrees` | `true` | dever 使用独立 git worktree；`false` 时共享工作树（无 worktree 操作） |
-| `artifactsDir` | `docs/lbx-agent-team` | **保留项**：工件实际写入 `<stateDir>/<teamId>/artifacts/`（源码注释明确如此） |
 | `maxReviewLoop` | `3` | 连续 REQUEST_CHANGES 上限，达到上限即置 failed |
 | `promptSectionOrder` | `117` | usage 提示段顺序 |
 | `slashCommand` | `true` | 注册 `/lbx-agent-team` slash 命令 + 手势边界；`false` 只保留自然语言触发 |
@@ -321,7 +320,6 @@ dever 成员在 `gitWorktrees` 开启时于 spawn/claim 时创建独立 worktree
 - **registry 镜像陈旧（环境）。** `registry.npmmirror.com` 对 `@deepseek-ai/dsh-headless` 解析出 `0.0.1-rc.1` 且其依赖 404，安装失败。使用官方 registry 或本地链接安装（tarball/git 路径完全绕开 registry）。
 - **载体任务遗留（Task 19 观察）。** 内部为唤醒成员而建的"评审/验证载体任务"在流程收尾后可能停在 `in_review`；其产物已落盘不影响交付，可作后续迭代优化点。
 - **headless 需要 LLM 配置。** 无 API key 时会话无法真实执行。
-- **`artifactsDir` 尚未接线。** 工件实际落在 `<stateDir>/<teamId>/artifacts/`，而非 `config.artifactsDir`。
 
 ## 验证
 

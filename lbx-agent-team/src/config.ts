@@ -9,7 +9,6 @@ export interface Config {
   autoRoster?: boolean
   autoDispatch?: boolean
   gitWorktrees?: boolean
-  artifactsDir?: string
   maxReviewLoop?: number
   promptSectionOrder?: number
   slashCommand?: boolean
@@ -24,7 +23,6 @@ export const DEFAULTS = {
   autoRoster: true,
   autoDispatch: true,
   gitWorktrees: true,
-  artifactsDir: 'docs/lbx-agent-team',
   maxReviewLoop: 3,
   promptSectionOrder: 117,
   slashCommand: true,
@@ -39,7 +37,6 @@ export const Config: z<Config> = z.object({
   autoRoster: z.boolean().default(DEFAULTS.autoRoster),
   autoDispatch: z.boolean().default(DEFAULTS.autoDispatch),
   gitWorktrees: z.boolean().default(DEFAULTS.gitWorktrees),
-  artifactsDir: z.string().default(DEFAULTS.artifactsDir),
   maxReviewLoop: z.natural().min(1).default(DEFAULTS.maxReviewLoop),
   promptSectionOrder: z.natural().default(DEFAULTS.promptSectionOrder),
   slashCommand: z.boolean().default(DEFAULTS.slashCommand),

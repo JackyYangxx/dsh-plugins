@@ -365,7 +365,7 @@ export function registerCommsTools(ctx: Context, config: ToolsConfig): void {
             throw new Error(`unknown artifact kind: ${String(args.kind)}`)
         }
         // 路径一致性（Task 10 评审）：角色 prompt 已告知 checker/tester 工件位于
-        // {stateRoot}/{teamId}/artifacts/ 下，故写入该目录而非 config.artifactsDir。
+        // {stateRoot}/{teamId}/artifacts/ 下，故固定写入该目录。
         const dir = join(stateRoot, fresh.id, 'artifacts')
         const path = join(dir, relPath)
         await mkdir(dirname(path), { recursive: true })
