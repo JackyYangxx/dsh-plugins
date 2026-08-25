@@ -231,6 +231,7 @@ dsh web                            # 然后：/lbx-agent-team 实现 docs/specs/
 - **共享工作树提交会暂存全部改动（git add -A）。** 由队长处理的任务、`gitWorktrees: false` 的 pool dever、或 worktree 创建失败后回退的任务，都会在共享工作区提交——那里的 `git add -A` 会把无关的未跟踪文件一并扫进提交。优先使用独立 worktree 流程；使用回退路径时请保持共享工作树干净（加固计划在 M2）。
 - **尚未发布 npm。** 请使用上面已验证的本地路径；`dsh plugin --profile web add lbx-agent-team` 在正式发布前不可用。
 - **git 安装必须带 `lib/`。** 因为 `lib/` 被 .gitignore 忽略，不带构建产物的 git 安装能装成功、`--dump-config` 也不报错，但**启动时**会以 `Error [ERR_MODULE_NOT_FOUND]`（`lib/index.js`）失败。解决：安装包含 `lib/` 的 tag / Release 快照（推荐），或私有仓库提交 `lib/`。
+- **peer 范围锁定在 built-against 的 rc.8 线。** `@deepseek-ai/dsh-*` 的 peer 用 `^0.1.0-rc.8`（与 devDependencies 一致），按 semver 预发布规则不接纳宿主 CLI 闭包的 `0.1.1-rc.2`；全部 peer 为 optional 且 profile 以 `autoInstallPeers: false` 安装，插件实际解析自己的 rc.8 副本（已验证端到端）。若未来需正式支持其他宿主线再调整。
 - **peer 双实例组合（已记录，非阻塞）。** 插件从自身 `node_modules` 解析 `@deepseek-ai/dsh-*`（devDeps `0.1.0-rc.8`），宿主 CLI 闭包为 `0.1.1-rc.2`；已验证流程全部正常，但该双实例布局是发布前需要重新评估的风险点。
 - **registry 镜像陈旧（环境）。** `registry.npmmirror.com` 对 `@deepseek-ai` 包解析出陈旧版本（如 `dsh-headless@0.0.1-rc.1` 依赖 404）。请使用官方 registry 或本地链接安装。
 - **`artifactsDir` 已于 M2-C 移除。** 工件固定写入 `<stateDir>/<teamId>/artifacts/`，该配置项已不存在。
