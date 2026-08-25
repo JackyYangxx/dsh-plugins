@@ -125,7 +125,7 @@ The plugin reuses DSH capability seams instead of re-inventing them:
 | filesystem | state root `<workspace>/.lbx-agent-team/` |
 | `ctx.shell` | git worktree / commit / merge (local fallback for tests & headless) |
 
-Task state machine (whitelist-validated): `pending → claimed → in_progress → in_review → approved → committed → tested → complete`, with `changes_requested` (back to `in_progress` on resubmit) and terminal `failed` / `cancelled`.
+Task state machine (whitelist-validated): `pending → claimed → in_progress → in_review → approved → committed → tested → complete`, with `changes_requested` (back to `in_review` on resubmit) and terminal `failed` / `cancelled`.
 
 ## Web UI
 

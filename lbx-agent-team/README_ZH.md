@@ -126,7 +126,7 @@ dsh --profile scratch "用 LBX Agent Team 实现 docs/specs/demo.md"
 | 文件系统 | 状态根 `<workspace>/.lbx-agent-team/` |
 | `ctx.shell` | git worktree / commit / merge（测试与 headless 用本地兜底） |
 
-任务状态机（白名单校验）：`pending → claimed → in_progress → in_review → approved → committed → tested → complete`，另有 `changes_requested`（重提后回到 `in_progress`）与终态 `failed` / `cancelled`。
+任务状态机（白名单校验）：`pending → claimed → in_progress → in_review → approved → committed → tested → complete`，另有 `changes_requested`（重提后回到 `in_review`）与终态 `failed` / `cancelled`。
 
 ## Web UI
 
