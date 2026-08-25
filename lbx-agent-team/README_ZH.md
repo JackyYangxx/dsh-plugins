@@ -116,7 +116,7 @@ dsh --profile scratch "用 LBX Agent Team 实现 docs/specs/demo.md"
 
 | DSH 能力 | LBX Agent Team 用法 |
 | --- | --- |
-| `ctx.tools` 注册表 | 16 个 `lbx_agent_team_*` 工具 |
+| `ctx.tools` 注册表 | 17 个 `lbx_agent_team_*` 工具 |
 | `ctx.subagents.startContinuable()` / `followup` | durable 成员：惰性 spawn、按需唤醒 |
 | `ctx.systemPrompt.section()` | 使用协议提示段（顺序 `promptSectionOrder`） |
 | `ctx.commands.register` | `/lbx-agent-team` 宿主命令 |
@@ -178,7 +178,7 @@ dsh --profile scratch "用 LBX Agent Team 实现 docs/specs/demo.md"
 - **创建团队前 spec 文件必须已存在**——`lbx_agent_team_create` 会校验。
 - 模型偶尔可能完成工作却没有按协议更新任务状态；面板如实展示磁盘真相，队长以 `lbx_agent_team_status` / 状态文件为准汇总。
 
-## 工具一览（16 个）
+## 工具一览（17 个）
 
 | 工具 | 作用 |
 | --- | --- |
@@ -193,6 +193,7 @@ dsh --profile scratch "用 LBX Agent Team 实现 docs/specs/demo.md"
 | `lbx_agent_team_submit_review` | checker 评审：APPROVE 或 REQUEST_CHANGES（有轮次上限） |
 | `lbx_agent_team_commit_task` | 在 worktree 中提交已批准任务；无 shell 服务时提供手动回退 |
 | `lbx_agent_team_test_task` | tester 判定：PASS 合并分支回主线；FAIL 自动开 issue |
+| `lbx_agent_team_cancel_task` | 队长专用取消未完成任务：记录 cancelledAt/By/reason、释放持有成员（置 idle + quiesce）、清理专属 worktree、本轮派发跳过该成员 |
 | `lbx_agent_team_issue_create` | 记录 issue（任何参与人；tester FAIL 时自动创建） |
 | `lbx_agent_team_issue_resolve` | 解决 open issue（队长或报告人） |
 | `lbx_agent_team_send_message` | 给队长或队友发持久化消息（唤醒收件人） |
@@ -240,7 +241,7 @@ dsh web                            # 然后：/lbx-agent-team 实现 docs/specs/
 
 | 指南 | 内容 |
 | --- | --- |
-| [docs/usage.md](./docs/usage.md) | 架构、状态布局、16 个工具契约、状态机、配置、已知限制 |
+| [docs/usage.md](./docs/usage.md) | 架构、状态布局、17 个工具契约、状态机、配置、已知限制 |
 | [docs/verification-scratch-profile.md](./docs/verification-scratch-profile.md) | Task 19 真实验证记录 |
 | [docs/verification-from-zero-install.md](./docs/verification-from-zero-install.md) | Task 20 tarball 与 git 安装验证记录 |
 

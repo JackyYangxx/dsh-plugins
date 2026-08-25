@@ -115,7 +115,7 @@ The plugin reuses DSH capability seams instead of re-inventing them:
 
 | DSH capability | LBX Agent Team usage |
 | --- | --- |
-| `ctx.tools` registry | 16 `lbx_agent_team_*` tools |
+| `ctx.tools` registry | 17 `lbx_agent_team_*` tools |
 | `ctx.subagents.startContinuable()` / `followup` | durable members spawned lazily and woken on demand |
 | `ctx.systemPrompt.section()` | usage protocol section (order `promptSectionOrder`) |
 | `ctx.commands.register` | `/lbx-agent-team` host command |
@@ -177,7 +177,7 @@ Cross-LLM-provider routing is expressed per member through `lbx_agent_team_add_m
 - **A spec file must exist before creating a team** — `lbx_agent_team_create` validates it.
 - Models may occasionally finish work without performing the expected task-state update; the panel shows disk truth, and the captain consolidates via `lbx_agent_team_status` / the state files.
 
-## Tools (16)
+## Tools (17)
 
 | Tool | What it does |
 | --- | --- |
@@ -192,6 +192,7 @@ Cross-LLM-provider routing is expressed per member through `lbx_agent_team_add_m
 | `lbx_agent_team_submit_review` | Checker verdict: APPROVE or REQUEST_CHANGES (loop-capped) |
 | `lbx_agent_team_commit_task` | Commit an approved task in its worktree; manual fallback without a shell service |
 | `lbx_agent_team_test_task` | Tester verdict: PASS merges the branch back; FAIL opens an issue |
+| `lbx_agent_team_cancel_task` | Captain-only cancel of an unfinished task; records cancelledAt/By/reason, frees the holder (idle + quiesce), cleans a dedicated worktree, skips the freed member in this dispatch round |
 | `lbx_agent_team_issue_create` | Record an issue (any participant; tester auto-creates on FAIL) |
 | `lbx_agent_team_issue_resolve` | Resolve an open issue (captain or reporter) |
 | `lbx_agent_team_send_message` | Send a durable message to the captain or a teammate (wakes the recipient) |
@@ -239,7 +240,7 @@ dsh web                            # then: /lbx-agent-team 实现 docs/specs/xxx
 
 | Guide | Covers |
 | --- | --- |
-| [docs/usage.md](./docs/usage.md) | Architecture, state layout, 16 tool contracts, state machine, configuration, known limits |
+| [docs/usage.md](./docs/usage.md) | Architecture, state layout, 17 tool contracts, state machine, configuration, known limits |
 | [docs/verification-scratch-profile.md](./docs/verification-scratch-profile.md) | Task 19 real verification record |
 | [docs/verification-from-zero-install.md](./docs/verification-from-zero-install.md) | Task 20 tarball & git install verification record |
 

@@ -1,6 +1,6 @@
 # 使用指南（详细）
 
-本文档收纳 lbx-agent-team 的详细使用内容：架构与数据链路、状态文件布局、16 个工具的完整契约（参数 / 硬门 / 错误文案）、任务状态机、配置详解与已知限制。README 只保留简介与快速上手。
+本文档收纳 lbx-agent-team 的详细使用内容：架构与数据链路、状态文件布局、17 个工具的完整契约（参数 / 硬门 / 错误文案）、任务状态机、配置详解与已知限制。README 只保留简介与快速上手。
 
 ## 工作原理
 
@@ -8,7 +8,7 @@
 
 | DSH 能力 | 插件用法 |
 | --- | --- |
-| `ctx.tools` 注册表 | 注册 16 个 `lbx_agent_team_*` 工具（与 `tool-workflow` 同一注册路径） |
+| `ctx.tools` 注册表 | 注册 17 个 `lbx_agent_team_*` 工具（与 `tool-workflow` 同一注册路径） |
 | `ctx.subagents.startContinuable()` / `followup` | 创建/唤醒成员：durable 可续聊子代理，带角色 persona |
 | `ctx.systemPrompt.section()` | 注册"LBX Agent Team 使用协议"提示段（顺序 `promptSectionOrder`，默认 117） |
 | `ctx.commands.register` | 注册 `/lbx-agent-team` 宿主命令（slash 菜单可见） |
@@ -54,7 +54,7 @@
 | `tested` | finish / fail / cancel | complete / failed / cancelled |
 | `complete` / `failed` / `cancelled` | （终态，无动作） | — |
 
-工具到动作的映射：`claim_task` → claim；`update_task`（claimed 上任意更新）→ start；`update_task done:true` → submit；`submit_review APPROVE/REQUEST_CHANGES` → approve / request_changes；`commit_task` → commit；`test_task PASS` → test；`update_task done:true`（队长，tested 上）→ finish。
+工具到动作的映射：`claim_task` → claim；`update_task`（claimed 上任意更新）→ start；`update_task done:true` → submit；`submit_review APPROVE/REQUEST_CHANGES` → approve / request_changes；`commit_task` → commit；`test_task PASS` → test；`update_task done:true`（队长，tested 上）→ finish；`cancel_task` → cancel。
 
 ### 硬门（Hard Gates）
 
@@ -74,11 +74,11 @@
 `pending`（已登记未 spawn）→ `idle`（已 spawn 等待）→ `working`（正在执行轮次）→ `removed`（已移除/退休）。
 
 - 成员先登记（`id=''`、`status='pending'`），首次需要干活时才惰性 spawn：pool dever 在首次 claim 时 spawn（autoDispatch 也会把 pending pool dever spawn 到 `maxParallelDevers`）；专属 dever 在其任务被 claim 时 spawn。
-- 队长专属工具对成员不可见（`toolFilter` 拒绝）：`create`、`add_member`、`remove_member`、`reassign_task`、`create_task`、`delete` 共 6 个。
+- 队长专属工具对成员不可见（`toolFilter` 拒绝）：`create`、`add_member`、`remove_member`、`reassign_task`、`create_task`、`cancel_task`、`delete` 共 7 个。
 - 成员标签前缀 `lbx-agent-team:<teamId>:<memberName>`。
 - LLM 路由快照：成员沿用队长当前 provider/model 时快照其思考强度；provider 或 model 任一改变时自动使用目标模型默认档；显式 `reasoningEffort`（目标模型支持的档位 id，或 `"default"`）优先并在创建前校验。
 
-## 工具契约（16 个）
+## 工具契约（17 个）
 
 错误文案均为源码实际抛出（`src/tools/*.ts` + `src/tools/helpers.ts`）。所有工具都需要调用者是队长或活动成员，否则：
 
@@ -140,7 +140,7 @@ dever 成员在 `gitWorktrees` 开启时于 spawn/claim 时创建独立 worktree
 
 无参数。归档团队：`status=archived`、移除成员 worktree（best effort）、标记成员 removed、中断所有已 spawn 成员，并把团队目录原子移动到 `<stateDir>/archive/<teamId>/`。归档后 status/update 工具不再能找到该团队。
 
-### 任务工具（7 个）
+### 任务工具（8 个）
 
 #### `lbx_agent_team_create_task`（队长专用）
 
@@ -218,6 +218,17 @@ dever 成员在 `gitWorktrees` 开启时于 spawn/claim 时创建独立 worktree
 `PASS` → `tested`，worktree 模式下把分支 `--no-ff` 合并回主线（冲突报告进队长邮箱）；`FAIL` → 任务保持 `committed` 并同步开出 HIGH issue（assignee = 任务 assignee）。
 
 门：`only a tester member may test`；`task must be committed before testing`。
+
+#### `lbx_agent_team_cancel_task`（队长专用）
+
+| 参数 | 必填 | 说明 |
+| --- | --- | --- |
+| `taskId` | ✅ | 要取消的任务 id |
+| `reason` | — | 取消原因（记录到 `task.reason`） |
+
+把未完成任务迁移到终态 `cancelled`，并记录 `cancelledAt` / `cancelledBy` / `reason`。若成员持有任务（claimed/in_progress）：成员置 idle，运行中则 interrupt + quiesce；本轮派发泵跳过该成员（不自动派发新任务，队长自行安排）。专属任务清理 worktree + 分支；专属 dever 已 spawn 且无其他未完成任务时归档（`removed` + `retiredAt`）。其他 idle dever 仍可领取就绪任务。
+
+门：终态不可取消：`cannot cancel a task in status <status>`；任务不存在：`task not found: <id>`。
 
 ### 通信 / 状态 / 工件工具（5 个）
 
@@ -314,5 +325,5 @@ dever 成员在 `gitWorktrees` 开启时于 spawn/claim 时创建独立 worktree
 
 ## 验证
 
-- **离线与组合：** `pnpm install && pnpm build && pnpm verify`（构建 + `node --test` 单元测试 + `scripts/verify-composition.mjs` 组合验证：16 工具注册、usage 提示段、slash 命令/手势边界、create 冒烟、state 路由、webless mount）。
+- **离线与组合：** `pnpm install && pnpm build && pnpm verify`（构建 + `node --test` 单元测试 + `scripts/verify-composition.mjs` 组合验证：17 工具注册、usage 提示段、slash 命令/手势边界、create 冒烟、state 路由、webless mount）。
 - **真实 e2e：** 见 `docs/verification-scratch-profile.md`（Task 19：scratch profile + 真实 LLM 全流程）与 `docs/verification-from-zero-install.md`（Task 20：tarball 与 git 从零安装）。

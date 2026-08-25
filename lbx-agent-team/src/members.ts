@@ -38,6 +38,7 @@ export const MEMBER_DENIED_TOOLS = [
   'lbx_agent_team_remove_member',
   'lbx_agent_team_reassign_task',
   'lbx_agent_team_create_task',
+  'lbx_agent_team_cancel_task',
   'lbx_agent_team_delete',
 ] as const
 
