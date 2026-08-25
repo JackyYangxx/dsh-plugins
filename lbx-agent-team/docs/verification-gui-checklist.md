@@ -104,7 +104,7 @@ DSH_HOME="$H" dsh --profile web --host 127.0.0.1 --port 3101 --no-open &
 
 - **如何验证：** ① 键盘：Escape 折叠全部展开团队 → 再次 Escape 收起面板；团队头按钮 Space/Enter 切换 aria-expanded。② 焦点：团队头按钮 aria-expanded / aria-controls 指向面板体 id；:focus-visible 样式存在；close 按钮与 reopen badge 有 aria-label。③ reduced motion：CDP 仿真 prefers-reduced-motion: reduce，预期 CSS 媒体查询把动画/过渡置 0。
 - **实测（部分）：** PASS —— 团队头按钮 aria 完整（aria-expanded="true"、aria-controls="lbx-agent-team-r3-body"、aria-label="收起 Probe Team"），点击切换折叠正确；关闭按钮（收起活动面板）→ 面板收起 → reopen badge 出现（文案「1 个团队活动，点击展开」，计数 1）→ 点击 badge 重新展开；reduced-motion 仿真后 matchMedia('(prefers-reduced-motion: reduce)').matches === true，面板与切换按钮 computed transition-duration: 0s（媒体查询生效）。
-  - MANUAL —— **Escape 折叠 / 完整 Tab 遍历**：GUI 持续把焦点还给输入框（composer），而 Escape 处理器按设计跳过 typing target（INPUT/TEXTAREA/contenteditable），实测在输入框聚焦时按 Escape 被有意忽略（无副作用、不误关）——符合预期，但「焦点移到非输入控件后按 Escape 折叠」需人工浏览器核对；Escape 分支逻辑有单元测试覆盖（ActivityPanel 测试套件）。
+  - MANUAL —— **Escape 折叠 / 完整 Tab 遍历**：GUI 持续把焦点还给输入框（composer），而 Escape 处理器按设计跳过 typing target（INPUT/TEXTAREA/contenteditable），实测在输入框聚焦时按 Escape 被有意忽略（无副作用、不误关）——符合预期，但「焦点移到非输入控件后按 Escape 折叠」需人工浏览器核对；Escape 分支为组件内联逻辑（无单测），需人工浏览器核对。
 
 ### 10. 窄屏行为（<=640px）
 
