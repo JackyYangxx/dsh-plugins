@@ -20,9 +20,15 @@ test('isTerminalTaskStatus classifies terminal and live statuses', () => {
   }
 })
 
-test('actionButtonsFor offers no actions on terminal tasks', () => {
-  for (const status of ['complete', 'failed', 'cancelled']) {
-    assert.deepEqual(actionButtonsFor(status), [], status)
+test('actionButtonsFor offers no actions on complete tasks', () => {
+  assert.deepEqual(actionButtonsFor('complete'), [])
+})
+
+test('actionButtonsFor offers retry-only reassign on failed/cancelled tasks', () => {
+  // The pipeline has no cancel transition from failed/cancelled, but
+  // lbx_agent_team_reassign_task retries them — so only reassign shows.
+  for (const status of ['failed', 'cancelled']) {
+    assert.deepEqual(actionButtonsFor(status), ['reassign'], status)
   }
 })
 

@@ -19,6 +19,11 @@
  *
  * Pure side-effect module: takes the client context and returns a boolean
  * outcome, so it is unit-testable with a stub ctx.
+ *
+ * IMPORTANT: a true outcome confirms only that the host ACCEPTED the prompt.
+ * It is not an execution confirmation — the panel has no feedback loop into
+ * the captain's tool calls; the next activity poll reflects the resulting
+ * task state.
  */
 
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'

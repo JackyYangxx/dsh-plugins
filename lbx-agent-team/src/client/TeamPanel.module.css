@@ -357,13 +357,20 @@
 
 .taskRow {
   display: grid;
-  /* 5th track: captain action buttons (M2-B); empty for non-captain views. */
-  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+  /* 4 tracks by default (id, subject, assignee, stage) — rows without
+     captain buttons keep the pre-M2-B layout and its exact track gaps
+     (Minor-5 review: an always-on 5th track left an empty gap). */
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 8px;
   min-height: 25px;
   padding: 3px 6px;
   border-radius: 6px;
+}
+
+/* 5th track only on rows that actually render action buttons. */
+.taskRow[data-actions] {
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
 }
 
 .taskRow:hover {
@@ -493,7 +500,6 @@
   outline-offset: 1px;
 }
 
-.actionButton[data-kind='complete'],
 .actionButton[data-action='complete'] {
   background: color-mix(in srgb, var(--dsw-alias-state-success) 14%, transparent);
   color: var(--dsw-panel-on-tint-success);
@@ -521,6 +527,16 @@
 .actionButton[data-sent='true'] {
   background: color-mix(in srgb, var(--dsw-alias-state-success) 18%, transparent);
   color: var(--dsw-panel-on-tint-success);
+  cursor: default;
+}
+
+/* In-flight send guard (Minor-3 review): disabled until the directive settles. */
+.actionButton[data-busy='true'] {
+  opacity: 0.55;
+  cursor: progress;
+}
+
+.actionButton:disabled {
   cursor: default;
 }
 

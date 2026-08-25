@@ -25,8 +25,10 @@ export type CaptainAction = 'cancel' | 'complete' | 'reassign'
 
 /**
  * Terminal task statuses mirrored from the host pipeline (types.ts
- * TERMINAL_TASK_STATUSES). Cancel/reassign are only offered on non-terminal
- * tasks; a terminal task cannot move again.
+ * TERMINAL_TASK_STATUSES): no further pipeline transition applies. Note that
+ * failed/cancelled are STILL retryable through lbx_agent_team_reassign_task
+ * (the tool only rejects complete), so the panel offers a retry-only reassign
+ * button on them; complete is truly immutable.
  */
 export const TERMINAL_TASK_STATUSES: readonly string[] = ['complete', 'failed', 'cancelled']
 
@@ -46,13 +48,19 @@ export interface ReassignActionOptions {
 
 /**
  * Which panel actions apply to one task status (mirrors the host pipeline
- * transitions: cancel is legal on every non-terminal status, complete is the
- * captain's finish on tested tasks, reassign targets non-terminal tasks).
+ * transitions):
+ * - complete — the captain's finish on tested tasks;
+ * - reassign — every non-complete status, including retry of failed/cancelled
+ *   (lbx_agent_team_reassign_task only rejects complete);
+ * - cancel — every live (non-terminal) status; the pipeline has no cancel
+ *   transition from failed/cancelled, so those get retry only.
  * Returns the actions in button display order: complete first when present,
  * then reassign, then cancel.
  */
 export function actionButtonsFor(status: string): readonly CaptainAction[] {
-  if (isTerminalTaskStatus(status)) return []
+  if (status === 'complete') return []
+  // failed / cancelled are terminal but retryable via reassign_task.
+  if (isTerminalTaskStatus(status)) return ['reassign']
   const actions: CaptainAction[] = []
   if (status === 'tested') actions.push('complete')
   actions.push('reassign', 'cancel')

@@ -94,13 +94,17 @@ function reassignTargetChips(
 /**
  * One captain action button. Reassign toggles the inline target picker
  * instead of injecting directly; complete/cancel report the action through
- * onAction immediately.
+ * onAction immediately. While a send for this button is in flight (or after
+ * a successful send) the button is disabled, so a double click cannot queue
+ * two identical directives (Minor-3 review).
  */
 function ActionButton({
   action,
   task,
   sent,
   open,
+  busy,
+  disabled,
   translate,
   onAction,
   onToggleReassign,
@@ -110,6 +114,10 @@ function ActionButton({
   readonly sent: boolean
   /** Whether this task's reassign picker is open (aria-expanded state). */
   readonly open: boolean
+  /** True while this button's send is in flight (disabled + busy style). */
+  readonly busy: boolean
+  /** Whether the button is disabled (in-flight or sent). */
+  readonly disabled: boolean
   readonly translate: LbxAgentTeamTranslate
   readonly onAction: (action: CaptainAction, task: ActivityTask, options?: ReassignActionOptions) => void | Promise<boolean>
   readonly onToggleReassign: () => void
@@ -130,10 +138,12 @@ function ActionButton({
       className={css.actionButton}
       data-action={action}
       data-sent={sent || undefined}
+      data-busy={busy || undefined}
       data-open={action === 'reassign' ? (open || undefined) : undefined}
       aria-expanded={action === 'reassign' ? open : undefined}
       aria-label={sent ? translate('action.aria.sent') : translate(key, { taskId: task.id })}
       title={sent ? translate('action.sent') : translate(key, { taskId: task.id })}
+      disabled={disabled}
       onClick={handleClick}
     >
       {sent ? translate('action.sent') : translate(
@@ -190,8 +200,10 @@ export function TaskList({
 }: TaskListProps): ReactNode {
   const translate = t ?? enFallbackTranslate
   const title = caption ?? translate('tasks.caption')
-  // Transient feedback + the open reassign picker (display state only).
+  // Transient feedback, the in-flight send guard and the open reassign
+  // picker (display state only).
   const [sentKey, setSentKey] = useState<string | null>(null)
+  const [inFlightKey, setInFlightKey] = useState<string | null>(null)
   const [reassignOpenFor, setReassignOpenFor] = useState<string | null>(null)
 
   useEffect(() => {
@@ -210,13 +222,19 @@ export function TaskList({
   ): void => {
     if (onAction === undefined) return
     const key = actionSentKey(action, task.id)
-    setSentKey(key)
+    // In-flight guard: this button is disabled until the send settles, so a
+    // double click cannot queue two identical directives (Minor-3 review).
+    setInFlightKey(key)
     setReassignOpenFor(null)
     const outcome = onAction(action, task, options)
     if (outcome !== undefined && typeof outcome.then === 'function') {
       void outcome.then((ok) => {
-        if (!ok) setSentKey((previous) => (previous === key ? null : previous))
+        setInFlightKey((previous) => (previous === key ? null : previous))
+        if (ok) setSentKey(key)
       })
+    } else {
+      setInFlightKey((previous) => (previous === key ? null : previous))
+      setSentKey(key)
     }
   }, [onAction])
 
@@ -236,7 +254,7 @@ export function TaskList({
               const showActions = actions.length > 0
               const reassignOpen = reassignOpenFor === task.id
               return (
-                <li key={task.id} className={css.taskRow} data-stage={stage}>
+                <li key={task.id} className={css.taskRow} data-stage={stage} data-actions={showActions ? '' : undefined}>
                   <span className={css.taskId}>{task.id}</span>
                   <span className={css.taskSubject} title={task.subject}>{task.subject}</span>
                   <span className={css.taskAssignee}>{task.assignee === '' ? '—' : task.assignee}</span>
@@ -248,20 +266,27 @@ export function TaskList({
                       data-open={reassignOpen || undefined}
                     >
                       <span className={css.taskActionButtons}>
-                        {actions.map((action) => (
-                          <ActionButton
-                            key={action}
-                            action={action}
-                            task={task}
-                            sent={sentKey === actionSentKey(action, task.id)}
-                            open={reassignOpen}
-                            translate={translate}
-                            onAction={handleAction}
-                            onToggleReassign={() => {
-                              setReassignOpenFor((previous) => (previous === task.id ? null : task.id))
-                            }}
-                          />
-                        ))}
+                        {actions.map((action) => {
+                          const key = actionSentKey(action, task.id)
+                          const busy = inFlightKey === key
+                          const sent = sentKey === key
+                          return (
+                            <ActionButton
+                              key={action}
+                              action={action}
+                              task={task}
+                              sent={sent}
+                              open={reassignOpen}
+                              busy={busy}
+                              disabled={busy || sent}
+                              translate={translate}
+                              onAction={handleAction}
+                              onToggleReassign={() => {
+                                setReassignOpenFor((previous) => (previous === task.id ? null : task.id))
+                              }}
+                            />
+                          )
+                        })}
                       </span>
                       {reassignOpen && (
                         <ReassignTargets

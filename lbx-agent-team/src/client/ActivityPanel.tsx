@@ -189,9 +189,12 @@ export function ActivityPanel({ sessionsList, t, ctx }: ActivityPanelProps): Rea
 
   // Captain action injection (M2-B): buttons are shown only for the current
   // session's own captain teams; clicking one builds the directive and sends
-  // it into the captain session as an ordinary queued user message. A failed
-  // injection surfaces a transient notice; the button's optimistic "sent"
-  // state is reverted by the handler's false outcome.
+  // it into the captain session as an ordinary queued user message. Success
+  // here only means the prompt was ACCEPTED by the host — the panel has no
+  // execution feedback loop: the captain model still decides and runs the
+  // lbx_agent_team_* tool (captain-only authorization applies), and the next
+  // poll tick shows the resulting state. A failed injection surfaces a
+  // transient notice; the button's "sent" state is set only on acceptance.
   const [injectFailedKey, setInjectFailedKey] = useState<string | null>(null)
   useEffect(() => {
     if (injectFailedKey === null) return
@@ -313,8 +316,13 @@ export function ActivityPanel({ sessionsList, t, ctx }: ActivityPanelProps): Rea
                     onToggleCollapsed={() => { toggleTeam(key) }}
                     t={t}
                     isCaptain={isCaptain}
+                    // Only idle/pending members can take a reassigned task: the tool
+                    // rejects working ("busy with another task") and removed
+                    // targets; pool/captain are implicit chips.
                     reassignTargets={isCaptain
-                      ? team.members.filter((member) => member.status !== 'removed').map((member) => member.name)
+                      ? team.members
+                          .filter((member) => member.status === 'idle' || member.status === 'pending')
+                          .map((member) => member.name)
                       : undefined}
                     onAction={isCaptain
                       ? (action, task, options) => handleTeamAction(action, task, team, options)
