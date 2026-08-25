@@ -61,7 +61,7 @@ dsh plugin --profile web add /tmp/lbx-agent-team-0.1.0.tgz
 
 Verified: a fresh profile installs without peer resolution or conflicts, all four `exports` resolve, and the web server boots with the plugin's client bundle served.
 
-### 3. Git install (verified paths; release-snapshot recommended)
+### 3. Git install (private-repo fallback verified; release snapshot is the recommended — but not yet published — path)
 
 - **Release snapshot (recommended — Task 20 decision):** publish a tag or a Release tarball that contains a built `lib/`, then install by tag:
 
@@ -84,7 +84,7 @@ Verified: a fresh profile installs without peer resolution or conflicts, all fou
 
 ## Usage
 
-The spec must exist **before** you create a team — `lbx_agent_team_create` validates the file and fails loudly otherwise. Example spec: `docs/specs/xxx.md`.
+The spec must exist **before** you create a team — `lbx_agent_team_create` validates the file and fails loudly otherwise. Use any existing design document (e.g. `docs/superpowers/specs/2026-08-23-lbx-agent-team-design.md`) or a minimal markdown spec: a `# <title>` heading plus a few requirement bullets are enough.
 
 **In the Web GUI** — type the slash command with a goal, or simply describe the goal in natural language:
 
@@ -106,7 +106,7 @@ dsh --profile scratch "用 LBX Agent Team 实现 docs/specs/demo.md"
 2. The captain adds devers — named members (`lbx_agent_team_add_member`, role `dever`) or dedicated tasks (`assignee=new-dever`, spawned lazily at claim). Members spawn only when they first need work.
 3. The planner reads the spec and proposes a task list (artifact + message); the captain creates tasks with explicit `dependencies` and a `verification` method.
 4. The shared scheduler dispatches every ready pool task to an idle dever up to `maxParallelDevers`; the dever implements in its own git worktree.
-5. Hard gates drive the pipeline: claim requires all dependencies complete → implementation → checker review (`APPROVE` / `REQUEST_CHANGES`, loop-capped at `maxReviewLoop`) → commit (only after `APPROVE`) → tester `PASS` / `FAIL` (only after commit; `FAIL` opens an issue) → the captain completes the task.
+5. Hard gates drive the pipeline: claim requires all dependencies complete → implementation → checker review (`APPROVE` / `REQUEST_CHANGES`, loop-capped at `maxReviewLoop` (reaching it marks the task failed)) → commit (only after `APPROVE`) → tester `PASS` / `FAIL` (only after commit; `FAIL` opens an issue) → the captain completes the task.
 6. The captain consolidates the result and archives the team (`lbx_agent_team_delete`), keeping the full record under `<stateDir>/archive/`.
 
 Team state lives under `<workspace>/.lbx-agent-team/<teamId>/` (team.json, inboxes, artifacts, worktrees). Every write is serialized under a per-team in-process lock and published atomically (tmp + fsync + rename).
@@ -163,7 +163,7 @@ Defaults work out of the box. A trusted profile can override behavior:
 | `autoDispatch` | `true` | auto-dispatch ready pool tasks to idle devers |
 | `gitWorktrees` | `true` | devers work in isolated git worktrees (needs a git repo) |
 | `artifactsDir` | `docs/lbx-agent-team` | reserved; artifacts currently land in `<stateDir>/<teamId>/artifacts/` |
-| `maxReviewLoop` | `3` | consecutive REQUEST_CHANGES cap → task marked failed |
+| `maxReviewLoop` | `3` | consecutive REQUEST_CHANGES cap — task marked failed once the count reaches this value |
 | `promptSectionOrder` | `117` | usage prompt-section order |
 | `slashCommand` | `true` | register `/lbx-agent-team` + gesture boundary |
 

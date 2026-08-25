@@ -277,7 +277,7 @@ dever 成员在 `gitWorktrees` 开启时于 spawn/claim 时创建独立 worktree
 | `autoDispatch` | `true` | 就绪 pool 任务自动派发给 idle dever |
 | `gitWorktrees` | `true` | dever 使用独立 git worktree；`false` 时共享工作树（无 worktree 操作） |
 | `artifactsDir` | `docs/lbx-agent-team` | **保留项**：工件实际写入 `<stateDir>/<teamId>/artifacts/`（源码注释明确如此） |
-| `maxReviewLoop` | `3` | 连续 REQUEST_CHANGES 上限，超限置 failed |
+| `maxReviewLoop` | `3` | 连续 REQUEST_CHANGES 上限，达到上限即置 failed |
 | `promptSectionOrder` | `117` | usage 提示段顺序 |
 | `slashCommand` | `true` | 注册 `/lbx-agent-team` slash 命令 + 手势边界；`false` 只保留自然语言触发 |
 
@@ -314,4 +314,3 @@ dever 成员在 `gitWorktrees` 开启时于 spawn/claim 时创建独立 worktree
 
 - **离线与组合：** `pnpm install && pnpm build && pnpm verify`（构建 + `node --test` 单元测试 + `scripts/verify-composition.mjs` 组合验证：16 工具注册、usage 提示段、slash 命令/手势边界、create 冒烟、state 路由、webless mount）。
 - **真实 e2e：** 见 `docs/verification-scratch-profile.md`（Task 19：scratch profile + 真实 LLM 全流程）与 `docs/verification-from-zero-install.md`（Task 20：tarball 与 git 从零安装）。
-

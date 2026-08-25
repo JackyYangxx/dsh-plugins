@@ -62,7 +62,7 @@ dsh plugin --profile web add /tmp/lbx-agent-team-0.1.0.tgz
 
 已验证：全新 profile 安装零 peer 解析、无冲突；4 个 `exports` 全部可解析；web 服务启动冒烟通过，client bundle 正常服务。
 
-### 3. git 安装（已验证路径；推荐发布快照）
+### 3. git 安装（仅私有仓库回退已实测；发布快照为推荐路径——尚未发布，当前不可用）
 
 - **发布快照（推荐——Task 20 决策）：** 发布一个包含构建产物 `lib/` 的 tag 或 Release tarball，然后按 tag 安装：
 
@@ -85,7 +85,7 @@ dsh plugin --profile web add /tmp/lbx-agent-team-0.1.0.tgz
 
 ## 使用
 
-**必须先有 spec 文件**再创建团队——`lbx_agent_team_create` 会校验文件存在，缺失时报错。示例 spec：`docs/specs/xxx.md`。
+**必须先有 spec 文件**再创建团队——`lbx_agent_team_create` 会校验文件存在，缺失时报错。可用仓库内任何现成设计文档（如 `docs/superpowers/specs/2026-08-23-lbx-agent-team-design.md`），或最小 markdown spec（一个 `# 标题` + 几条需求要点即可）。
 
 **Web GUI** —— 输入 slash 命令加目标，或直接用自然语言描述目标：
 
@@ -164,7 +164,7 @@ dsh --profile scratch "用 LBX Agent Team 实现 docs/specs/demo.md"
 | `autoDispatch` | `true` | 就绪 pool 任务自动派发给 idle dever |
 | `gitWorktrees` | `true` | dever 使用独立 git worktree（需要 git 仓库） |
 | `artifactsDir` | `docs/lbx-agent-team` | 保留项；工件目前实际写入 `<stateDir>/<teamId>/artifacts/` |
-| `maxReviewLoop` | `3` | 连续 REQUEST_CHANGES 上限，超限置 failed |
+| `maxReviewLoop` | `3` | 连续 REQUEST_CHANGES 上限，达到该次数即置 failed |
 | `promptSectionOrder` | `117` | usage 提示段顺序 |
 | `slashCommand` | `true` | 注册 `/lbx-agent-team` + 手势边界 |
 
