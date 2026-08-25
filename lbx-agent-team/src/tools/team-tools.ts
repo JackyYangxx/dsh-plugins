@@ -72,31 +72,31 @@ export function registerTeamTools(ctx: Context, config: ToolsConfig): void {
       // M3：per-captain 锁 + per-teamId 锁，防并发 create 双团队/同名覆盖
       return withTeamLock(stateRoot, `captain:${agent.id}`, async () => {
         return withTeamLock(stateRoot, teamId, async () => {
-        const existing = await readTeam(stateRoot, teamId)
-        if (existing) throw new Error(`team "${teamId}" already exists — pick another name or delete it first`)
-        const current = await findTeamByCaptain(stateRoot, agent.id)
-        if (current) throw new Error(`you already lead team "${current.name}" — end it before creating another`)
-        const team: TeamState = {
-          id: teamId,
-          name,
-          specPath,
-          description: args.description,
-          captainSessionId: agent.id,
-          status: 'active',
-          createdAt: Date.now(),
-          members: [],
-          tasks: [],
-          issues: [],
-          taskSeq: 0,
-          issueSeq: 0,
-        }
-        if (config.autoRoster !== false) {
-          for (const role of ['planner', 'checker', 'tester'] as const) {
-            registerMember(team, { name: role, role })
+          const existing = await readTeam(stateRoot, teamId)
+          if (existing) throw new Error(`team "${teamId}" already exists — pick another name or delete it first`)
+          const current = await findTeamByCaptain(stateRoot, agent.id)
+          if (current) throw new Error(`you already lead team "${current.name}" — end it before creating another`)
+          const team: TeamState = {
+            id: teamId,
+            name,
+            specPath,
+            description: args.description,
+            captainSessionId: agent.id,
+            status: 'active',
+            createdAt: Date.now(),
+            members: [],
+            tasks: [],
+            issues: [],
+            taskSeq: 0,
+            issueSeq: 0,
           }
-        }
-        await writeTeam(stateRoot, team)
-        return { teamId }
+          if (config.autoRoster !== false) {
+            for (const role of ['planner', 'checker', 'tester'] as const) {
+              registerMember(team, { name: role, role })
+            }
+          }
+          await writeTeam(stateRoot, team)
+          return { teamId }
         })
       })
     },

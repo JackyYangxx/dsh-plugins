@@ -173,6 +173,24 @@ function selectionRuntime(ctx: Context): MemberSelectionRuntime {
 }
 
 /**
+ * Resolve the member's reasoning effort: an explicit effort wins, the sentinel
+ * "default" forces the target model's default, and a changed route drops the
+ * captain's effort so the target materializes its own default.
+ */
+function resolveMemberReasoningEffort(
+  explicitEffort: string | undefined,
+  sameRoute: boolean,
+  currentEffort: ReasoningEffortId | undefined,
+): ReasoningEffortId | undefined {
+  if (explicitEffort === undefined) {
+    if (sameRoute) return currentEffort
+    return undefined
+  }
+  if (explicitEffort === 'default') return undefined
+  return ReasoningEffortId(explicitEffort)
+}
+
+/**
  * Resolve one member's complete model selection. Ordinary members snapshot the
  * captain's current request route and reasoning effort. When provider or model
  * changes, effort is intentionally omitted so the target model materializes
@@ -221,13 +239,7 @@ export async function resolveMemberLlmSelection(
   // own default. Explicit effort still wins, while "default" forces that
   // target-default behavior even when the route did not change.
   const sameRoute = provider === currentProvider && model === currentModel
-  const reasoningEffort = explicitEffort === undefined
-    ? sameRoute
-      ? current?.reasoningEffort
-      : undefined
-    : explicitEffort === 'default'
-      ? undefined
-      : ReasoningEffortId(explicitEffort)
+  const reasoningEffort = resolveMemberReasoningEffort(explicitEffort, sameRoute, current?.reasoningEffort)
   const resolved = await ctx.llm.resolveCallConfig({
     provider,
     model,

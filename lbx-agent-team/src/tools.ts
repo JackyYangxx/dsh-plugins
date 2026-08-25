@@ -10,8 +10,7 @@
  * @module lbx-agent-team/tools
  *
  * 接线：本模块只定义注册，不自动执行。由 index.ts apply() 调用
- * registerLbxAgentTeamTools(ctx, resolveToolsConfig(config)) 完成接线
- *（Task 13 组装范围；在 Task 13 落地前本文件为"待接线"的独立模块，非死代码）。
+ * registerLbxAgentTeamTools(ctx, resolveToolsConfig(config)) 完成接线。
  */
 
 import type { Context } from '@deepseek-ai/cordis'

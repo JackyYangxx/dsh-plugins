@@ -8,7 +8,7 @@ export interface ShellResult { ok: boolean; stdout: string; stderr: string }
 export interface ShellAdapter { exec(cmd: string, cwd: string): Promise<ShellResult> }
 
 /** POSIX 单引号转义：参数原样进入 shell，杜绝命令注入与变量/命令展开。 */
-function shq(arg: string): string {
+export function shq(arg: string): string {
   return "'" + arg.replace(/'/g, "'\\''") + "'"
 }
 

@@ -65,11 +65,13 @@ export function registerCommsTools(ctx: Context, config: ToolsConfig): void {
         const title = (args.title ?? '').trim()
         if (title === '') throw new Error('issue title must not be empty')
         if (args.taskId !== undefined) requireTask(fresh, args.taskId)
-        const responsible = (args.responsible ?? '').trim() !== ''
-          ? (args.responsible ?? '').trim()
-          : args.taskId !== undefined
-            ? fresh.tasks.find((t) => t.id === args.taskId)?.assignee
-            : undefined
+        const responsibleArg = (args.responsible ?? '').trim()
+        let responsible: string | undefined
+        if (responsibleArg !== '') {
+          responsible = responsibleArg
+        } else if (args.taskId !== undefined) {
+          responsible = fresh.tasks.find((t) => t.id === args.taskId)?.assignee
+        }
         const issue: TeamIssue = {
           id: `i${fresh.issueSeq + 1}`,
           title,

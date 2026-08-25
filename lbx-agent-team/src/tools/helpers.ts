@@ -12,7 +12,7 @@ import type { SessionId } from '@deepseek-ai/dsh-session'
 import { randomUUID } from 'node:crypto'
 import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import { createWorktree, localShell, mergeBranch, removeWorktree, runGit, shellAdapter, type ShellAdapter } from '../git.ts'
+import { createWorktree, localShell, mergeBranch, removeWorktree, runGit, shellAdapter, shq, type ShellAdapter } from '../git.ts'
 import { appendMailbox, readTeam, withTeamLock, writeTeam } from '../state.ts'
 import { claimGate, newAttemptId } from '../pipeline.ts'
 import { nextDispatch } from '../scheduler.ts'
@@ -257,12 +257,6 @@ export async function commitInWorktree(
   const sym = await runGit(sh, cwd, ['symbolic-ref', '--short', 'HEAD'])
   return { hash, branch: sym.ok ? sym.stdout.trim() : 'HEAD' }
 }
-
-/** POSIX 单引号转义（无 shell 退化路径的精确命令文本用）。 */
-function shq(arg: string): string {
-  return "'" + arg.replace(/'/g, "'\\''") + "'"
-}
-
 export function gitCommandText(cwd: string, message: string): string[] {
   return [
     `git -C ${shq(cwd)} add -A`,
@@ -349,14 +343,12 @@ export async function dispatchInsideLock(
   const wakes: Wake[] = []
   let mutated = false
 
-  const hasReadyPoolTask = (): boolean => fresh.tasks.some((t) =>
+  // spawnMember 对 dever 强制要求 roleCtx.taskSubject：取首个就绪池任务的主题
+  //（该 dever 大概率会被派发到同一任务；实际任务以唤醒消息为准）。
+  const firstReady = fresh.tasks.find((t) =>
     t.status === 'pending' && t.assignee === 'pool' && t.dedicated !== true && claimGate(fresh, t) === undefined)
 
-  if (hasReadyPoolTask()) {
-    // spawnMember 对 dever 强制要求 roleCtx.taskSubject：取首个就绪池任务的主题
-    //（该 dever 大概率会被派发到同一任务；实际任务以唤醒消息为准）。
-    const firstReady = fresh.tasks.find((t) =>
-      t.status === 'pending' && t.assignee === 'pool' && t.dedicated !== true && claimGate(fresh, t) === undefined)
+  if (firstReady !== undefined) {
     const activePoolCount = (): number => fresh.members.filter((m) => m.role === 'dever' && m.status !== 'removed').length
     for (const member of fresh.members) {
       if (member.role !== 'dever' || member.status !== 'pending') continue
@@ -365,7 +357,7 @@ export async function dispatchInsideLock(
         await spawnMember(e.ctx, {
           teamId: fresh.id,
           member,
-          roleCtx: { specPath: fresh.specPath, stateRoot, teamId: fresh.id, taskSubject: firstReady?.subject },
+          roleCtx: { specPath: fresh.specPath, stateRoot, teamId: fresh.id, taskSubject: firstReady.subject },
           provider: e.config.memberProvider,
           defaultModel: e.config.memberModel,
           signal,
@@ -379,7 +371,7 @@ export async function dispatchInsideLock(
   }
 
   for (;;) {
-    const d = nextDispatch(fresh, e.config.maxParallelDevers)
+    const d = nextDispatch(fresh)
     if (d === undefined) break
     const task = fresh.tasks.find((t) => t.id === d.taskId)
     const member = fresh.members.find((m) => m.name === d.member && m.status !== 'removed')

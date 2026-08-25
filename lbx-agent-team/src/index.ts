@@ -149,6 +149,19 @@ function memberActivityOf(
   return activity
 }
 
+/** Live activity label for one member row; archived teams have no live activity. */
+function memberActivityLabel(
+  historic: boolean,
+  memberId: string,
+  live: 'running' | 'idle' | 'ready' | undefined,
+): MemberActivity {
+  if (historic) return 'idle'
+  if (memberId === '') return 'unknown'
+  if (live === 'running') return 'working'
+  if (live === 'idle' || live === 'ready') return 'idle'
+  return 'unknown'
+}
+
 /**
  * Assemble one team snapshot from its durable record plus live activity.
  * @param ctx - the plugin context (injects `agents`, used for activity).
@@ -178,15 +191,7 @@ async function assembleTeamSnapshot(
       name: member.name,
       role: member.role ?? '',
       status: member.status,
-      activity: historic
-        ? 'idle'
-        : member.id === ''
-          ? 'unknown'
-          : live === 'running'
-            ? 'working'
-            : live === 'idle' || live === 'ready'
-              ? 'idle'
-              : 'unknown',
+      activity: memberActivityLabel(historic, member.id, live),
     }
   })
   return {

@@ -1,5 +1,5 @@
 /** 工具层已解析的插件配置：默认值在此展开，工具只消费本类型。 */
-import type { Config } from './config.ts'
+import { DEFAULTS, type Config } from './config.ts'
 
 export interface ToolsConfig {
   /** 团队状态目录名（workspace 下）。 */
@@ -24,14 +24,14 @@ export interface ToolsConfig {
 
 export function resolveToolsConfig(config: Config): ToolsConfig {
   return {
-    stateDir: config.stateDir ?? '.lbx-agent-team',
-    memberProvider: config.memberProvider ?? 'spawn',
+    stateDir: config.stateDir ?? DEFAULTS.stateDir,
+    memberProvider: config.memberProvider ?? DEFAULTS.memberProvider,
     memberModel: config.memberModel,
-    maxMembers: config.maxMembers ?? 12,
-    maxParallelDevers: config.maxParallelDevers ?? 3,
-    autoRoster: config.autoRoster ?? true,
-    autoDispatch: config.autoDispatch ?? true,
-    gitWorktrees: config.gitWorktrees ?? true,
-    maxReviewLoop: config.maxReviewLoop ?? 3,
+    maxMembers: config.maxMembers ?? DEFAULTS.maxMembers,
+    maxParallelDevers: config.maxParallelDevers ?? DEFAULTS.maxParallelDevers,
+    autoRoster: config.autoRoster ?? DEFAULTS.autoRoster,
+    autoDispatch: config.autoDispatch ?? DEFAULTS.autoDispatch,
+    gitWorktrees: config.gitWorktrees ?? DEFAULTS.gitWorktrees,
+    maxReviewLoop: config.maxReviewLoop ?? DEFAULTS.maxReviewLoop,
   }
 }

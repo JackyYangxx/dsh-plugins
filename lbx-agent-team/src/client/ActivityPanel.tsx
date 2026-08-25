@@ -18,7 +18,7 @@
  * and every subscription/polling controller is released on unmount.
  */
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import type { ObservableSnapshot, SessionListState } from '@deepseek-ai/dsh-client-runtime/client'
 import {
   getActivityMonitorTargetsSnapshot,
@@ -262,29 +262,26 @@ export function ActivityPanel({ sessionsList, t }: ActivityPanelProps): ReactNod
           ? <p className={css.emptyHint}>{t('panel.empty')}</p>
           : (
             <>
-              {visibleTeams.map((team) => {
+              {[
+                ...visibleTeams.map((team) => ({ team, archived: false })),
+                ...visibleArchived.map((team) => ({ team, archived: true })),
+              ].map(({ team, archived }) => {
                 const key = teamKey(team)
-                return (
+                const panel = (
                   <TeamPanel
-                    key={key}
                     team={team}
                     collapsed={collapsedKeys.has(key)}
                     onToggleCollapsed={() => { toggleTeam(key) }}
                     t={t}
                   />
                 )
-              })}
-              {visibleArchived.map((team) => {
-                const key = teamKey(team)
+                if (!archived) {
+                  return <Fragment key={key}>{panel}</Fragment>
+                }
                 return (
                   <div key={key} className={css.archivedWrap} data-historic>
                     <span className={css.archiveLabel}>{t('panel.archived')}</span>
-                    <TeamPanel
-                      team={team}
-                      collapsed={collapsedKeys.has(key)}
-                      onToggleCollapsed={() => { toggleTeam(key) }}
-                      t={t}
-                    />
+                    {panel}
                   </div>
                 )
               })}
