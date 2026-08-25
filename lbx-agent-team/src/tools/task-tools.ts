@@ -639,7 +639,7 @@ ${(value.commands ?? []).join('\n')}`,
   // —— 工具 17/17：cancel_task ——
   ctx.tools.register(defineTool({
     name: 'lbx_agent_team_cancel_task',
-    description: 'Cancel an unfinished task (captain-only): the task moves to the terminal status cancelled with cancelledAt/cancelledBy/reason recorded. If a member holds the task (claimed/in_progress), it is set idle and, when still running, its live turn is interrupted and quiesced; the dispatch pump skips that member this round, so no new task is auto-assigned to it — the captain arranges its next work. A dedicated task also gets its worktree and branch removed (resetTaskWorktree), and its dedicated dever is archived (removed, retiredAt) when it was spawned and holds no other unfinished task. The pump still runs so other idle devers can claim ready tasks.',
+    description: 'Cancel an unfinished task (captain-only): the task moves to the terminal status cancelled with cancelledAt/cancelledBy/reason recorded. If a member holds the task (claimed/in_progress), it is set idle and, when still running, its live turn is interrupted and quiesced; the dispatch pump skips that member this round, so no new task is auto-assigned to it — the captain arranges its next work. A dedicated task also gets its worktree and branch removed (resetTaskWorktree), and its dedicated dever is archived (removed, retiredAt) when it was spawned and holds no other unfinished task. The pump still runs so other idle devers can claim ready tasks. Cancelling does NOT revert already-committed or merged changes — the work stays in the repository; only the task record is closed as cancelled.',
     parameters: {
       taskId: { type: 'string', required: true, description: 'The task id to cancel.' },
       reason: { type: 'string', description: 'Optional reason for the cancellation.' },
@@ -688,15 +688,22 @@ ${(value.commands ?? []).join('\n')}`,
         let archivedDever: string | undefined
         if (holder !== undefined) {
           const wasWorking = holder.status === 'working'
+          // I-1 已知风险（已接受）：与 M1 reassign 不同，这里在锁内直接置 idle，
+          // 仅靠 excludeMembers 保护本次泵；锁释放到锁外 quiesce 之间的窄窗口内，
+          // 并发泵理论上可能先派发新任务给该成员（概率极低，随后会被 quiesce 打断）。
           holder.status = 'idle'
           exclude.push(holder.name)
           if (wasWorking && holder.id !== '') quiesceMember = holder
         }
-        if (task.dedicated === true && holder !== undefined) {
-          // dedicated：清 worktree + 分支（resetTaskWorktree）；已 spawn 且无其他
-          // 未完成任务 → 归档（D4/remove_member 模式：removed + retiredAt）。
+        if (config.gitWorktrees !== false && holder !== undefined) {
+          // 清理该 (member, task) 的 worktree + 分支。worktree 模式下专属任务与
+          // pool 任务都有 per-(member, task) 的 worktree，统一清理（I-2/M-1）。
+          // 注意：取消不撤销已提交/已合并的变更（M-3，见工具描述）。
           await resetTaskWorktree(e, workspace, stateRoot, fresh, holder.name, task.id)
           worktreeRemoved = true
+        }
+        if (task.dedicated === true && holder !== undefined) {
+          // dedicated：已 spawn 且无其他未完成任务 → 归档 dever（D4/remove_member 模式）。
           const otherOpen = fresh.tasks.some((t) =>
             t.id !== task.id && t.assignee === holder.name && !TERMINAL_TASK_STATUSES.includes(t.status))
           if (holder.id !== '' && !otherOpen) {
