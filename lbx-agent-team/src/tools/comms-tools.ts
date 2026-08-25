@@ -24,7 +24,7 @@ import {
 export function registerCommsTools(ctx: Context, config: ToolsConfig): void {
   const e = env(ctx, config)
 
-  // —— 工具 12/16：issue_create ——
+  // —— 工具 12/17：issue_create ——
   ctx.tools.register(defineTool({
     name: 'lbx_agent_team_issue_create',
     description: 'Record an issue on the team (any active participant). lbx_agent_team_test_task creates issues automatically on FAIL; use this tool for manual reports. responsible defaults to the referenced task\'s assignee.',
@@ -93,7 +93,7 @@ export function registerCommsTools(ctx: Context, config: ToolsConfig): void {
     },
   }))
 
-  // —— 工具 13/16：issue_resolve ——
+  // —— 工具 13/17：issue_resolve ——
   ctx.tools.register(defineTool({
     name: 'lbx_agent_team_issue_resolve',
     description: 'Resolve an open issue (open → resolved). Only the captain or the issue\'s reporter may resolve it. Optionally record the fixing commit hash.',
@@ -141,7 +141,7 @@ export function registerCommsTools(ctx: Context, config: ToolsConfig): void {
     },
   }))
 
-  // —— 工具 14/16：send_message ——
+  // —— 工具 14/17：send_message ——
   ctx.tools.register(defineTool({
     name: 'lbx_agent_team_send_message',
     description: 'Send a message to the captain or to an active teammate (any active participant). The message is persisted to the recipient\'s mailbox; a member recipient is also woken (best effort) so the message becomes its next turn. Check your own mailbox via lbx_agent_team_status.',
@@ -217,7 +217,7 @@ export function registerCommsTools(ctx: Context, config: ToolsConfig): void {
     },
   }))
 
-  // —— 工具 15/16：status ——
+  // —— 工具 15/17：status ——
   ctx.tools.register(defineTool({
     name: 'lbx_agent_team_status',
     description: 'Team snapshot (any active participant): members, tasks, issues, blocked tasks (dependencies not complete) and the ready queue (pending tasks whose dependencies are complete), plus the caller\'s unread inbox. Poll this to watch progress.',
@@ -304,7 +304,7 @@ export function registerCommsTools(ctx: Context, config: ToolsConfig): void {
     },
   }))
 
-  // —— 工具 4/16：artifact ——
+  // —— 工具 16/17：artifact ——
   ctx.tools.register(defineTool({
     name: 'lbx_agent_team_artifact',
     description: 'Generate a deterministic markdown artifact from the team JSON truth (any active participant) and write it under <stateDir>/<teamId>/artifacts/ (tasklist.md, reviews/<taskId>.md, tests/report.md, final-report.md). Returns the written path. taskId is required for kind=review.',

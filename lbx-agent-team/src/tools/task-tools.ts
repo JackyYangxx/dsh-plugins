@@ -1,4 +1,4 @@
-/** 任务级工具：create_task / claim_task / update_task / reassign_task / submit_review / commit_task / test_task。 */
+/** 任务级工具：create_task / claim_task / update_task / reassign_task / submit_review / commit_task / test_task / cancel_task。 */
 import type { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { shellAdapter } from '../git.ts'
@@ -12,8 +12,10 @@ import {
   assertAttempt,
   beginTaskAttempt,
   commitInWorktree,
+  dispatchInsideLock,
   ensureTaskWorktree,
   env,
+  fireWakes,
   gitCommandText,
   liveCaptain,
   mergeTaskBranch,
@@ -38,7 +40,7 @@ import {
 export function registerTaskTools(ctx: Context, config: ToolsConfig): void {
   const e = env(ctx, config)
 
-  // —— 工具 5/16：create_task ——
+  // —— 工具 5/17：create_task ——
   ctx.tools.register(defineTool({
     name: 'lbx_agent_team_create_task',
     description: 'Add a task to the team task list (captain-only). assignee: a member name, "pool" (shared dever pool — auto-dispatched when dependencies are ready), "new-dever" (spawn a dedicated dever lazily at claim time), or "captain". A task is only claimable once every dependency is complete. With autoDispatch on, a ready pool task is claimed and its dever woken immediately.',
@@ -107,7 +109,7 @@ export function registerTaskTools(ctx: Context, config: ToolsConfig): void {
     },
   }))
 
-  // —— 工具 6/16：claim_task ——
+  // —— 工具 6/17：claim_task ——
   ctx.tools.register(defineTool({
     name: 'lbx_agent_team_claim_task',
     description: 'Claim one ready task (all dependencies must be complete). Pool tasks are claimed by a pool dever itself, or by the captain on behalf of a named pool dever; dedicated tasks (created with assignee=new-dever) are claimed by the captain — the plugin atomically spawns the dedicated dever, creates its worktree, marks it working and wakes it; captain tasks are claimed by the captain with no spawn/worktree. Returns the attempt_id required for every update of this task; it becomes stale after reassignment.',
@@ -229,7 +231,7 @@ export function registerTaskTools(ctx: Context, config: ToolsConfig): void {
     },
   }))
 
-  // —— 工具 7/16：update_task ——
+  // —— 工具 7/17：update_task ——
   ctx.tools.register(defineTool({
     name: 'lbx_agent_team_update_task',
     description: 'Report progress/output on a claimed task and drive it through the pipeline. Members must present the current attempt_id returned by claim_task; a stale attempt_id is rejected ("stale attemptId — task was reassigned"). On a claimed task any update starts it (claimed → in_progress); output updates on in_progress do not migrate. done=true submits: in_progress/changes_requested → in_review (the assignee becomes idle). The captain finishes a tested task with done=true (tested → complete), which cleans up its worktree and archives a dedicated dever.',
@@ -321,7 +323,7 @@ export function registerTaskTools(ctx: Context, config: ToolsConfig): void {
     },
   }))
 
-  // —— 工具 8/16：reassign_task ——
+  // —— 工具 8/17：reassign_task ——
   ctx.tools.register(defineTool({
     name: 'lbx_agent_team_reassign_task',
     description: 'Captain-only. Revoke the current attempt of an unfinished task and hand it to the shared pool ("pool"), a named active member, or the captain ("captain"). The old assignee is interrupted and quiesced before the new state is written, so late updates are rejected as stale. Complete tasks are immutable; failed/cancelled tasks can be retried this way.',
@@ -417,7 +419,7 @@ export function registerTaskTools(ctx: Context, config: ToolsConfig): void {
     },
   }))
 
-  // —— 工具 9/16：submit_review ——
+  // —— 工具 9/17：submit_review ——
   ctx.tools.register(defineTool({
     name: 'lbx_agent_team_submit_review',
     description: 'Checker verdict for a task in in_review (checker-role members only). APPROVE moves the task to approved so it can be committed; REQUEST_CHANGES moves it back to changes_requested (the assignee fixes and resubmits via update_task done=true) and increments the review-loop counter — after maxReviewLoop consecutive rejections the task is marked failed.',
@@ -472,7 +474,7 @@ export function registerTaskTools(ctx: Context, config: ToolsConfig): void {
     },
   }))
 
-  // —— 工具 10/16：commit_task ——
+  // —— 工具 10/17：commit_task ——
   ctx.tools.register(defineTool({
     name: 'lbx_agent_team_commit_task',
     description: 'Commit an approved task (approved → committed) and record the commit hash. The plugin runs git add -A + git commit in the task\'s dever worktree (or the workspace for captain tasks) with the provided message; an empty diff is tolerated and records the current HEAD hash. Requires the DSH shell service; without one the tool returns the exact commands to run and the caller must run them and call again with commitHash. The commit hash must match /^[0-9a-f]{40}$/.',
@@ -555,7 +557,7 @@ ${(value.commands ?? []).join('\n')}`,
     },
   }))
 
-  // —— 工具 11/16：test_task ——
+  // —— 工具 11/17：test_task ——
   ctx.tools.register(defineTool({
     name: 'lbx_agent_team_test_task',
     description: 'Tester verdict for a committed task (tester-role members only). PASS moves the task to tested and, in worktree mode, merges its branch back to the main line (a conflict is reported to the captain\'s mailbox). FAIL keeps the task committed and synchronously opens a HIGH issue assigned to the task\'s assignee.',
@@ -631,6 +633,99 @@ ${(value.commands ?? []).join('\n')}`,
         await writeTeam(stateRoot, fresh)
         return { taskId: task.id, status: task.status, ...(issueId !== undefined ? { issueId } : {}) }
       })
+    },
+  }))
+
+  // —— 工具 17/17：cancel_task ——
+  ctx.tools.register(defineTool({
+    name: 'lbx_agent_team_cancel_task',
+    description: 'Cancel an unfinished task (captain-only): the task moves to the terminal status cancelled with cancelledAt/cancelledBy/reason recorded. If a member holds the task (claimed/in_progress), it is set idle and, when still running, its live turn is interrupted and quiesced; the dispatch pump skips that member this round, so no new task is auto-assigned to it — the captain arranges its next work. A dedicated task also gets its worktree and branch removed (resetTaskWorktree), and its dedicated dever is archived (removed, retiredAt) when it was spawned and holds no other unfinished task. The pump still runs so other idle devers can claim ready tasks.',
+    parameters: {
+      taskId: { type: 'string', required: true, description: 'The task id to cancel.' },
+      reason: { type: 'string', description: 'Optional reason for the cancellation.' },
+    },
+    output: {
+      schema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          taskId: { type: 'string', required: true },
+          status: { type: 'string', required: true },
+          worktreeRemoved: { type: 'boolean', required: true, description: 'true when the task had a dedicated worktree that was removed.' },
+          archivedDever: { type: 'string', description: 'Dedicated dever archived (removed) by this cancellation, when applicable.' },
+        },
+      },
+      render: (_args, value) => [{
+        type: 'text',
+        text: `Task ${value.taskId} cancelled (status ${value.status}); worktree removed: ${value.worktreeRemoved}; archived dever: ${value.archivedDever ?? 'none'}.`,
+      }],
+    },
+    async execute(args, exec) {
+      const agent = requireAgent(exec)
+      const workspace = workspaceOf(agent)
+      const stateRoot = stateRootOf(e, workspace)
+      const team = await requireCaptainTeam(stateRoot, agent.id)
+      let quiesceMember: TeamMember | undefined
+      const out = await withTeamLock(stateRoot, team.id, async () => {
+        const fresh = await requireFreshTeam(stateRoot, team.id)
+        actorOf(fresh, agent.id)
+        const task = requireTask(fresh, args.taskId)
+        const bad = transitionError(task.status, 'cancel')
+        if (bad !== undefined) throw new Error(bad)
+        task.status = 'cancelled'
+        task.cancelledAt = Date.now()
+        task.cancelledBy = 'captain'
+        const reason = (args.reason ?? '').trim()
+        if (reason !== '') task.reason = reason
+        // 持有者（claimed/in_progress 等非终态任务的成员 assignee）：置 idle；
+        // 仍在运行时锁外 interrupt + quiesce。本次派发泵跳过它（excludeMembers），
+        // 不自动派发新任务——队长自行安排（M2-A 设计）。
+        const holder = task.assignee === undefined || task.assignee === 'pool' || task.assignee === 'captain'
+          ? undefined
+          : fresh.members.find((m) => m.name === task.assignee && m.status !== 'removed')
+        const exclude: string[] = []
+        let worktreeRemoved = false
+        let archivedDever: string | undefined
+        if (holder !== undefined) {
+          const wasWorking = holder.status === 'working'
+          holder.status = 'idle'
+          exclude.push(holder.name)
+          if (wasWorking && holder.id !== '') quiesceMember = holder
+        }
+        if (task.dedicated === true && holder !== undefined) {
+          // dedicated：清 worktree + 分支（resetTaskWorktree）；已 spawn 且无其他
+          // 未完成任务 → 归档（D4/remove_member 模式：removed + retiredAt）。
+          await resetTaskWorktree(e, workspace, stateRoot, fresh, holder.name, task.id)
+          worktreeRemoved = true
+          const otherOpen = fresh.tasks.some((t) =>
+            t.id !== task.id && t.assignee === holder.name && !TERMINAL_TASK_STATUSES.includes(t.status))
+          if (holder.id !== '' && !otherOpen) {
+            holder.status = 'removed'
+            holder.retiredAt = Date.now()
+            archivedDever = holder.name
+          }
+        }
+        task.updatedAt = Date.now()
+        // 派发泵：让其他 idle dever 可领就绪任务；刚释放的成员本次跳过。
+        const dispatched = await dispatchInsideLock(e, exec.signal, workspace, stateRoot, fresh,
+          exclude.length > 0 ? { excludeMembers: exclude } : undefined)
+        await writeTeam(stateRoot, fresh)
+        return {
+          result: {
+            taskId: task.id,
+            status: task.status,
+            worktreeRemoved,
+            ...(archivedDever !== undefined ? { archivedDever } : {}),
+          },
+          wakes: dispatched,
+        }
+      })
+      // 锁外：中断并等待被释放成员安静（quiesce 模式，照 reassign_task）。
+      if (quiesceMember !== undefined) {
+        await quiesceOldAssignee(e, agent, quiesceMember, exec.signal)
+      }
+      await fireWakes(e, exec.signal, stateRoot, team.id, out.wakes)
+      return out.result
     },
   }))
 }

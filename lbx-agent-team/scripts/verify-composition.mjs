@@ -9,7 +9,7 @@
  * webServer / workspaceRegistry), then drives the registered surfaces exactly
  * the way the host would:
  *
- *  - all 16 `lbx_agent_team_*` tools land in the tools registry;
+ *  - all 17 `lbx_agent_team_*` tools land in the tools registry;
  *  - the `lbx-agent-team:usage` system prompt section exists (order 117) and
  *    names the entry tool;
  *  - with `slashCommand` on (default) the `/lbx-agent-team` host command
@@ -28,7 +28,7 @@
  *    containing the created team from the stubbed workspace registry;
  *  - webless mount (Composition C): with webServer / workspaceRegistry absent
  *    at mount time the plugin stays tool-only (no state route, no crash, all
- *    16 tools still register); binding both services later and emitting
+ *    17 tools still register); binding both services later and emitting
  *    `internal/service` re-triggers `registerWebSurface` so the state route
  *    appears and serves `{ teams: [...] }`.
  *
@@ -169,8 +169,8 @@ const ctx = makeContext()
 apply(ctx, {})
 const toolNames = [...ctx._tools.keys()]
 
-check('16 lbx_agent_team_* tools registered',
-  toolNames.length === 16 && toolNames.every((name) => name.startsWith('lbx_agent_team_')),
+check('17 lbx_agent_team_* tools registered',
+  toolNames.length === 17 && toolNames.every((name) => name.startsWith('lbx_agent_team_')),
   `got ${toolNames.length}: ${toolNames.join(', ')}`)
 check('create tool registered first',
   ctx._tools.get('lbx_agent_team_create') !== undefined
@@ -213,7 +213,7 @@ if (typeof preStep === 'function') {
 // ── Composition B: slashCommand off keeps tools but drops both surfaces ──
 const ctxNoSlash = makeContext()
 apply(ctxNoSlash, { slashCommand: false })
-check('slashCommand=false: tools still register', ctxNoSlash._tools.size === 16)
+check('slashCommand=false: tools still register', ctxNoSlash._tools.size === 17)
 check('slashCommand=false: no slash command registered', ctxNoSlash._commands.size === 0)
 check('slashCommand=false: no gesture boundary listener', (ctxNoSlash._listeners.get('agent/pre-step') ?? []).length === 0)
 
@@ -284,7 +284,7 @@ try {
   // ── Composition C: webless mount, then late web surface binding ──────
   const ctxWebless = makeContext({ webless: true })
   apply(ctxWebless, {})
-  check('webless mount: tools register without web services', ctxWebless._tools.size === 16)
+  check('webless mount: tools register without web services', ctxWebless._tools.size === 17)
   check('webless mount: usage section still present',
     ctxWebless._sections.some((section) => section.name === 'lbx-agent-team:usage'))
   check('webless mount: no state route before web services bind', ctxWebless._routes.length === 0)

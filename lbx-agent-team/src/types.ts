@@ -40,6 +40,9 @@ export interface TeamTask {
   review?: { verdict: 'APPROVE' | 'REQUEST_CHANGES'; reviewer: string; findingsPath?: string; at: number }
   commit?: { hash: string; branch: string; at: number }
   test?: { result: 'PASS' | 'FAIL'; tester: string; reportPath?: string; at: number }
+  cancelledAt?: number
+  cancelledBy?: string
+  reason?: string
   createdAt: number
   updatedAt: number
 }

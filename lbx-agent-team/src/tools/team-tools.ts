@@ -27,7 +27,7 @@ import {
 export function registerTeamTools(ctx: Context, config: ToolsConfig): void {
   const e = env(ctx, config)
 
-  // —— 工具 1/16：create ——
+  // —— 工具 1/17：create ——
   ctx.tools.register(defineTool({
     name: 'lbx_agent_team_create',
     description: 'Create an LBX Agent Team: the calling session becomes the captain (one active team per captain). REQUIRES an existing spec file (workspace-relative or absolute) and, when gitWorktrees is enabled (default), a git repository in the workspace. Registers the standard roster (planner/checker/tester) when autoRoster is on; add pool devers with lbx_agent_team_add_member (role=dever) or create dedicated tasks with assignee=new-dever. Fails loudly if the spec file is missing or the team id is taken.',
@@ -102,7 +102,7 @@ export function registerTeamTools(ctx: Context, config: ToolsConfig): void {
     },
   }))
 
-  // —— 工具 2/16：add_member ——
+  // —— 工具 2/17：add_member ——
   ctx.tools.register(defineTool({
     name: 'lbx_agent_team_add_member',
     description: 'Register a durable team member (captain-only). The member is registered as pending and spawned lazily the first time it needs work: a pool dever spawns when it first claims a task (auto-dispatch also spawns pending pool devers up to maxParallelDevers), a dedicated dever spawns when its task is claimed. For dever members with gitWorktrees enabled (default) the plugin creates a dedicated git worktree + branch at spawn/claim time. Supply provider/model/reasoningEffort only to override the captain\'s LLM route.',
@@ -158,7 +158,7 @@ export function registerTeamTools(ctx: Context, config: ToolsConfig): void {
     },
   }))
 
-  // —— 工具 3/16：remove_member ——
+  // —— 工具 3/17：remove_member ——
   ctx.tools.register(defineTool({
     name: 'lbx_agent_team_remove_member',
     description: 'Remove a member (captain-only): revoke its current attempt, return every unfinished task to the shared pool (assignee=pool, pending, attempt invalidated), mark the member removed, and interrupt + quiesce its live turn. Use when a member leaves or is replaced.',
@@ -213,7 +213,7 @@ export function registerTeamTools(ctx: Context, config: ToolsConfig): void {
     },
   }))
 
-  // —— 工具 16/16：delete ——
+  // —— 工具 16/17：delete ——
   ctx.tools.register(defineTool({
     name: 'lbx_agent_team_delete',
     description: 'Archive your team (captain-only): mark the team archived, remove member worktrees (best effort), interrupt all spawned members, and move the team directory under <stateDir>/archive/ so history stays on disk for later review. The team can no longer be found by status/update tools.',

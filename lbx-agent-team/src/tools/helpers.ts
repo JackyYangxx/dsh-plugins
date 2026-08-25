@@ -338,6 +338,7 @@ export async function dispatchInsideLock(
   workspace: string,
   stateRoot: string,
   fresh: TeamState,
+  opts?: { excludeMembers?: string[] },
 ): Promise<Wake[]> {
   if (e.config.autoDispatch === false || fresh.status !== 'active') return []
   const wakes: Wake[] = []
@@ -371,7 +372,7 @@ export async function dispatchInsideLock(
   }
 
   for (;;) {
-    const d = nextDispatch(fresh)
+    const d = nextDispatch(fresh, opts?.excludeMembers)
     if (d === undefined) break
     const task = fresh.tasks.find((t) => t.id === d.taskId)
     const member = fresh.members.find((m) => m.name === d.member && m.status !== 'removed')

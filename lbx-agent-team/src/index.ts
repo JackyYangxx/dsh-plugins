@@ -309,6 +309,7 @@ export function apply(ctx: Context, config: ConfigType): void {
     'lbx_agent_team_submit_review',
     'lbx_agent_team_commit_task',
     'lbx_agent_team_test_task',
+    'lbx_agent_team_cancel_task',
     'lbx_agent_team_issue_create',
     'lbx_agent_team_issue_resolve',
     'lbx_agent_team_send_message',

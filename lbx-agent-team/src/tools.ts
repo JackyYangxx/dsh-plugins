@@ -1,5 +1,5 @@
 /**
- * lbx_agent_team_* 工具面：16 个工具的注册入口。
+ * lbx_agent_team_* 工具面：17 个工具的注册入口。
  *
  * 三个子注册器（src/tools/team-tools.ts / task-tools.ts / comms-tools.ts）共享
  * src/tools/helpers.ts 的辅助：团队定位、锁内新鲜状态（requireFreshTeam 模式）、
@@ -24,7 +24,7 @@ import { registerCommsTools } from './tools/comms-tools.ts'
 export type { ToolsConfig } from './tool-config.ts'
 export { resolveToolsConfig } from './tool-config.ts'
 
-/** 注册全部 16 个 lbx_agent_team_* 工具与成员状态观察者。 */
+/** 注册全部 17 个 lbx_agent_team_* 工具与成员状态观察者。 */
 export function registerLbxAgentTeamTools(ctx: Context, config: ToolsConfig): void {
   registerTeamTools(ctx, config)
   registerTaskTools(ctx, config)

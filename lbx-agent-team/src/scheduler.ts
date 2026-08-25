@@ -6,9 +6,11 @@ export interface Dispatch { member: string; taskId: string }
 /**
  * 纯函数：从当前团队状态决定下一笔派发（一个 idle pool dever 领取一个就绪 pool 任务）。
  * 无就绪组合返回 undefined。maxParallelDevers 由调用方保证 pool 大小。
+ * `exclude` 为本次泵跳过（不派发）的成员名（如刚被取消任务释放的 dever——队长自行安排）。
  */
-export function nextDispatch(team: TeamState): Dispatch | undefined {
-  const idle = team.members.find((m) => m.status === 'idle' && m.role === 'dever')
+export function nextDispatch(team: TeamState, exclude?: readonly string[]): Dispatch | undefined {
+  const idle = team.members.find((m) =>
+    m.status === 'idle' && m.role === 'dever' && (exclude === undefined || !exclude.includes(m.name)))
   if (idle === undefined) return undefined
   const ready = team.tasks.find((t) =>
     t.status === 'pending' && t.assignee === 'pool' && t.dedicated !== true && claimGate(team, t) === undefined)

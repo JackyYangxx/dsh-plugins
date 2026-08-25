@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { readMailbox, readTeam, withTeamLock, writeTeam } from '../lib/state.js'
 import { createWorktree, localShell, runGit } from '../lib/git.js'
+import { registerTaskTools } from '../lib/tools/task-tools.js'
 import {
   assertAttempt,
   beginTaskAttempt,
@@ -468,6 +469,235 @@ test('fireWakes persists the assignment message first when the captain is offlin
     const persisted = await readTeam(stateRoot, 'team1')
     assert.equal(persisted.tasks[0].status, 'claimed')
     assert.equal(persisted.members[0].status, 'working')
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+// —— M2-A：captain-only cancel_task（非终态取消 / 终态拒绝 / 成员置 idle+interrupt /
+//    派发泵跳过被释放成员 / dedicated worktree 清理+归档 / 非队长拒绝）——
+
+/** 工具注册 harness：收集注册的工具，可选覆盖 ctx 服务（subagents 等）。 */
+function makeToolCtx(config = makeConfig(), overrides = {}) {
+  const tools = new Map()
+  const ctx = {
+    agents: { get: () => undefined },
+    logger: { warn: () => {}, info: () => {} },
+    get: () => undefined,
+    tools: { register: (def) => tools.set(def.name, def) },
+    ...overrides,
+  }
+  registerTaskTools(ctx, config)
+  return { ctx, tools }
+}
+
+/** 队长 agent（session.header.cwd 指向 workspace）。 */
+function makeCaptain(workspace) {
+  return { id: 'captain-1', session: { header: { cwd: workspace } } }
+}
+
+/** 落盘一个团队并返回 stateRoot。 */
+async function setupTeam(root, teamOverrides = {}) {
+  const stateRoot = join(root, '.lbx-agent-team')
+  const team = makeTeam(teamOverrides)
+  await writeTeam(stateRoot, team)
+  return stateRoot
+}
+
+const cancelTool = (tools) => tools.get('lbx_agent_team_cancel_task')
+
+test('cancel_task cancels a held non-terminal task, records fields, idles and interrupts the member', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'lbx-tools-'))
+  try {
+    const stateRoot = await setupTeam(root, {
+      members: [{ id: 'm1', name: 'dever-1', role: 'dever', status: 'working', joinedAt: 1 }],
+      tasks: [makeTask('t1', { status: 'in_progress', assignee: 'dever-1' })],
+      taskSeq: 1,
+    })
+    const interrupts = []
+    const { tools } = makeToolCtx(makeConfig(), {
+      subagents: { interrupt: (id) => interrupts.push(String(id)) },
+    })
+    const result = await cancelTool(tools).execute(
+      { taskId: 't1', reason: 'scope cut' },
+      { agent: makeCaptain(root), signal: new AbortController().signal },
+    )
+    assert.equal(result.status, 'cancelled')
+    assert.equal(result.worktreeRemoved, false)
+    assert.equal(result.archivedDever, undefined)
+    const persisted = await readTeam(stateRoot, 'team1')
+    assert.equal(persisted.tasks[0].status, 'cancelled')
+    assert.equal(persisted.tasks[0].cancelledBy, 'captain')
+    assert.ok(typeof persisted.tasks[0].cancelledAt === 'number')
+    assert.equal(persisted.tasks[0].reason, 'scope cut')
+    assert.equal(persisted.members[0].status, 'idle')
+    assert.deepEqual(interrupts, ['m1'])
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('cancel_task rejects a terminal task with the contract message', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'lbx-tools-'))
+  try {
+    const stateRoot = await setupTeam(root, {
+      tasks: [makeTask('t1', { status: 'complete' })],
+      taskSeq: 1,
+    })
+    const { tools } = makeToolCtx()
+    await assert.rejects(
+      cancelTool(tools).execute(
+        { taskId: 't1' },
+        { agent: makeCaptain(root), signal: new AbortController().signal },
+      ),
+      { message: 'cannot cancel a task in status complete' },
+    )
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('cancel_task rejects a missing task with the contract message', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'lbx-tools-'))
+  try {
+    const stateRoot = await setupTeam(root, {})
+    const { tools } = makeToolCtx()
+    await assert.rejects(
+      cancelTool(tools).execute(
+        { taskId: 't99' },
+        { agent: makeCaptain(root), signal: new AbortController().signal },
+      ),
+      { message: 'task not found: t99' },
+    )
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('cancel_task rejects a non-captain caller (requireCaptainTeam)', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'lbx-tools-'))
+  try {
+    const stateRoot = await setupTeam(root, {
+      members: [{ id: 'm1', name: 'dever-1', role: 'dever', status: 'idle', joinedAt: 1 }],
+      tasks: [makeTask('t1', { status: 'in_progress', assignee: 'dever-1' })],
+      taskSeq: 1,
+    })
+    const { tools } = makeToolCtx()
+    const memberAgent = { id: 'm1', session: { header: { cwd: root } } }
+    await assert.rejects(
+      cancelTool(tools).execute(
+        { taskId: 't1' },
+        { agent: memberAgent, signal: new AbortController().signal },
+      ),
+      { message: 'you are not leading any active team — call lbx_agent_team_create first' },
+    )
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('cancel_task dispatches ready work to other idle devers but not to the freed member', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'lbx-tools-'))
+  try {
+    const stateRoot = await setupTeam(root, {
+      members: [
+        { id: 'm1', name: 'dever-1', role: 'dever', status: 'working', joinedAt: 1 },
+        { id: 'm2', name: 'dever-2', role: 'dever', status: 'idle', joinedAt: 1 },
+      ],
+      tasks: [
+        makeTask('t1', { status: 'in_progress', assignee: 'dever-1' }),
+        makeTask('t2'),
+      ],
+      taskSeq: 2,
+    })
+    const { tools } = makeToolCtx()
+    await cancelTool(tools).execute(
+      { taskId: 't1' },
+      { agent: makeCaptain(root), signal: new AbortController().signal },
+    )
+    const persisted = await readTeam(stateRoot, 'team1')
+    assert.equal(persisted.tasks[0].status, 'cancelled')
+    // 就绪任务派发给其他 idle dever（dever-2），而非刚被释放的 dever-1
+    assert.equal(persisted.tasks[1].status, 'claimed')
+    assert.equal(persisted.tasks[1].assignee, 'dever-2')
+    assert.equal(persisted.members[0].status, 'idle')
+    assert.equal(persisted.members[1].status, 'working')
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('cancel_task leaves the freed member idle with no auto-dispatch when no other dever is idle', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'lbx-tools-'))
+  try {
+    const stateRoot = await setupTeam(root, {
+      members: [{ id: 'm1', name: 'dever-1', role: 'dever', status: 'working', joinedAt: 1 }],
+      tasks: [
+        makeTask('t1', { status: 'in_progress', assignee: 'dever-1' }),
+        makeTask('t2'),
+      ],
+      taskSeq: 2,
+    })
+    const { tools } = makeToolCtx()
+    await cancelTool(tools).execute(
+      { taskId: 't1' },
+      { agent: makeCaptain(root), signal: new AbortController().signal },
+    )
+    const persisted = await readTeam(stateRoot, 'team1')
+    assert.equal(persisted.tasks[0].status, 'cancelled')
+    assert.equal(persisted.tasks[1].status, 'pending') // 被释放成员本次被泵跳过
+    assert.equal(persisted.members[0].status, 'idle')
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('cancel_task removes the dedicated worktree and archives the spawned dever (real git)', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'lbx-tools-git-'))
+  try {
+    const repo = join(root, 'repo')
+    const shell = localShell()
+    await runGit(shell, root, ['init', '-b', 'main', 'repo'])
+    await runGit(shell, repo, ['config', 'user.email', 't@t.t'])
+    await runGit(shell, repo, ['config', 'user.name', 't'])
+    await writeFile(join(repo, 'base.txt'), 'base\n')
+    await runGit(shell, repo, ['add', '-A'])
+    await runGit(shell, repo, ['commit', '-m', 'base'])
+    const stateRoot = join(repo, '.lbx-agent-team')
+    const wtPath = taskWorktreePath(stateRoot, 'team1', 'dever-t1', 't1')
+    const branch = taskBranch('team1', 't1')
+    await createWorktree(shell, { repo, path: wtPath, branch, base: 'main' })
+
+    const interrupts = []
+    await setupTeam(repo, {
+      members: [{
+        id: 'm1', name: 'dever-t1', role: 'dever', status: 'working', joinedAt: 1,
+        worktreePath: wtPath, branch,
+      }],
+      tasks: [makeTask('t1', { status: 'in_progress', assignee: 'dever-t1', dedicated: true })],
+      taskSeq: 1,
+    })
+    const config = makeConfig({ gitWorktrees: true })
+    const { tools } = makeToolCtx(config, {
+      subagents: { interrupt: (id) => interrupts.push(String(id)) },
+    })
+    const result = await cancelTool(tools).execute(
+      { taskId: 't1' },
+      { agent: makeCaptain(repo), signal: new AbortController().signal },
+    )
+    assert.equal(result.status, 'cancelled')
+    assert.equal(result.worktreeRemoved, true)
+    assert.equal(result.archivedDever, 'dever-t1')
+    const persisted = await readTeam(stateRoot, 'team1')
+    assert.equal(persisted.tasks[0].status, 'cancelled')
+    assert.equal(persisted.members[0].status, 'removed')
+    assert.ok(typeof persisted.members[0].retiredAt === 'number')
+    assert.deepEqual(interrupts, ['m1'])
+    // 真实 git：worktree 与分支都被清理
+    const branchAfter = await runGit(shell, repo, ['branch', '--list', branch])
+    assert.equal(branchAfter.stdout.trim(), '')
+    const wtExists = await access(wtPath).then(() => true).catch(() => false)
+    assert.equal(wtExists, false)
   } finally {
     await rm(root, { recursive: true, force: true })
   }
