@@ -1,0 +1,632 @@
+/* lbx-agent-team activity panel surface (Task 17).
+   Pure presentation styles for TeamPanel and its child sections
+   (Roster / TaskList / DagView / Issues). Follows the dsh-agent-teams
+   reference token vocabulary with hard fallbacks so the panel renders
+   correctly even before the host theme resolves.
+
+   Contrast (WCAG AA): every badge uses a tinted background with a fixed
+   darker text color (--dsw-panel-on-tint-*), independent of host token
+   mid-tones, keeping text >= 4.5:1 against the module background. */
+
+.panel {
+  /* Bridge the older reference token vocabulary onto the rc.8 palette,
+     scoped to this surface so the host theme is never mutated. */
+  --dsw-alias-line-normal: var(--dsw-static-neutral-bluish-150, #e7e9ee);
+  --dsw-alias-line-strong: color-mix(
+    in srgb,
+    var(--dsw-static-neutral-bluish-200, #e1e5ee) 50%,
+    var(--dsw-static-neutral-bluish-300, #cfd3d6)
+  );
+  --dsw-alias-bg-module: var(--dsw-alias-bg-layer-1, #ffffff);
+  --dsw-alias-bg-fill-neutral: var(--dsw-static-neutral-bluish-100, #eef0f4);
+  --dsw-alias-state-success: var(--dsw-alias-state-success-primary, #12a150);
+  --dsw-alias-state-warning: var(--dsw-alias-state-warn-primary, #e08700);
+  --dsw-alias-state-danger: var(--dsw-alias-state-error-primary, #e5484d);
+
+  /* Fixed darker badge text — independent of host mid-tones (WCAG AA
+     >= 4.5:1 on the module background / tint surfaces). */
+  --dsw-panel-on-tint-business: #2748d4;
+  --dsw-panel-on-tint-success: #0a6b2f;
+  --dsw-panel-on-tint-warning: #8a5200;
+  --dsw-panel-on-tint-danger: #a01f24;
+
+  /* Neutral text tokens with dark fallbacks. */
+  --dsw-panel-label-primary: var(--dsw-alias-label-primary, #1b2430);
+  --dsw-panel-label-secondary: var(--dsw-alias-label-secondary, #3d4657);
+  --dsw-panel-label-tertiary: var(--dsw-alias-label-tertiary, #5b6472);
+
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--dsw-alias-line-strong) 62%, transparent);
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-module);
+  color: var(--dsw-panel-label-primary);
+}
+
+/* Collapsed panel keeps the header + summary strip only. */
+.panel[data-collapsed] .summaryRow {
+  padding-bottom: 10px;
+  border-bottom: 0;
+}
+
+.panelHead {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 10px 12px 0;
+}
+
+.toggleButton {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-panel-label-tertiary);
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.toggleButton:hover {
+  background: var(--dsw-alias-bg-fill-neutral);
+  color: var(--dsw-panel-label-primary);
+}
+
+.toggleButton:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary, #4d6bfe);
+  outline-offset: 1px;
+}
+
+.chevron {
+  flex: none;
+  transition: transform 140ms ease;
+}
+
+.chevron[data-open='true'] {
+  transform: rotate(90deg);
+}
+
+.panelTitle {
+  overflow: hidden;
+  flex: 1;
+  min-width: 0;
+  color: var(--dsw-panel-label-primary);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.archivedPill {
+  flex: none;
+  padding: 1px 7px;
+  border-radius: 4px;
+  background: var(--dsw-alias-bg-fill-neutral);
+  color: var(--dsw-panel-label-tertiary);
+  font-size: 9.5px;
+  font-weight: 600;
+  line-height: 15px;
+}
+
+/* panelSummary count strip */
+.summaryRow {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  padding: 8px 12px 10px;
+  border-bottom: 1px solid var(--dsw-alias-line-normal);
+}
+
+.summaryBadges {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.summaryBadge {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  height: 18px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--dsw-alias-bg-fill-neutral);
+  color: var(--dsw-panel-label-secondary);
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.summaryBadgeLabel {
+  font-size: 8.5px;
+  font-weight: 600;
+}
+
+.summaryBadge[data-bucket='total'] {
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary, #4d6bfe) 16%, transparent);
+  color: var(--dsw-panel-on-tint-business);
+}
+
+.summaryBadge[data-bucket='done'] {
+  background: color-mix(in srgb, var(--dsw-alias-state-success) 14%, transparent);
+  color: var(--dsw-panel-on-tint-success);
+}
+
+.summaryBadge[data-bucket='inProgress'] {
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary, #4d6bfe) 14%, transparent);
+  color: var(--dsw-panel-on-tint-business);
+}
+
+.summaryBadge[data-bucket='inReview'] {
+  background: color-mix(in srgb, var(--dsw-alias-state-warning) 14%, transparent);
+  color: var(--dsw-panel-on-tint-warning);
+}
+
+.summaryBadge[data-bucket='failed'] {
+  background: color-mix(in srgb, var(--dsw-alias-state-danger) 14%, transparent);
+  color: var(--dsw-panel-on-tint-danger);
+}
+
+/* Zero counts: mute the background only — the text stays readable. */
+.summaryBadge[data-count='0'] {
+  background: color-mix(in srgb, var(--dsw-alias-bg-fill-neutral) 55%, transparent);
+  color: var(--dsw-panel-label-tertiary);
+}
+
+/* scrollable content body with a capped height (tighter on narrow screens) */
+.body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: min(340px, 42vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: color-mix(in srgb, var(--dsw-alias-label-tertiary, #5b6472) 28%, transparent) transparent;
+  scrollbar-width: thin;
+}
+
+.body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.body::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--dsw-alias-label-tertiary, #5b6472) 28%, transparent);
+  background-clip: padding-box;
+}
+
+/* shared section chrome */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px 12px;
+  border-bottom: 1px solid var(--dsw-alias-line-normal);
+}
+
+.section:last-child {
+  border-bottom: 0;
+}
+
+.sectionHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.sectionTitle {
+  color: var(--dsw-panel-label-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+}
+
+.sectionCount {
+  color: var(--dsw-panel-label-tertiary);
+  font-size: 10px;
+  line-height: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+.emptyHint {
+  margin: 0;
+  color: var(--dsw-panel-label-tertiary);
+  font-size: 10.5px;
+  line-height: 15px;
+}
+
+/* roster */
+.roster {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.memberRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 26px;
+  padding: 3px 6px;
+  border-radius: 6px;
+}
+
+.memberRow[data-activity='working'] {
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary, #4d6bfe) 7%, var(--dsw-alias-bg-module));
+}
+
+.memberRow[data-status='removed'] {
+  opacity: 0.55;
+}
+
+.memberName {
+  overflow: hidden;
+  color: var(--dsw-panel-label-primary);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.roleBadge {
+  overflow: hidden;
+  max-width: 110px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--dsw-alias-bg-fill-neutral);
+  color: var(--dsw-panel-label-secondary);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.roleBadge:empty {
+  display: none;
+}
+
+.statusBadge {
+  flex: none;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--dsw-alias-bg-fill-neutral);
+  color: var(--dsw-panel-label-secondary);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 15px;
+  white-space: nowrap;
+}
+
+.statusBadge[data-status='working'] {
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary, #4d6bfe) 14%, transparent);
+  color: var(--dsw-panel-on-tint-business);
+}
+
+.statusBadge[data-status='pending'] {
+  background: color-mix(in srgb, var(--dsw-alias-state-warning) 14%, transparent);
+  color: var(--dsw-panel-on-tint-warning);
+}
+
+.statusBadge[data-status='idle'] {
+  background: var(--dsw-alias-bg-fill-neutral);
+  color: var(--dsw-panel-label-tertiary);
+}
+
+.statusBadge[data-status='removed'] {
+  background: transparent;
+  color: var(--dsw-panel-label-tertiary);
+  text-decoration: line-through;
+}
+
+/* task list */
+.taskList {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.taskRow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 25px;
+  padding: 3px 6px;
+  border-radius: 6px;
+}
+
+.taskRow:hover {
+  background: var(--dsw-alias-bg-fill-neutral);
+}
+
+.taskId {
+  flex: none;
+  color: var(--dsw-panel-on-tint-business);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 9.5px;
+  font-weight: 700;
+  line-height: 14px;
+}
+
+.taskSubject {
+  overflow: hidden;
+  color: var(--dsw-panel-label-primary);
+  font-size: 10.5px;
+  line-height: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.taskAssignee {
+  overflow: hidden;
+  max-width: 90px;
+  color: var(--dsw-panel-label-tertiary);
+  font-size: 9px;
+  line-height: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stageBadge {
+  flex: none;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--dsw-alias-bg-fill-neutral);
+  color: var(--dsw-panel-label-secondary);
+  font-size: 8.5px;
+  font-weight: 700;
+  line-height: 15px;
+  white-space: nowrap;
+}
+
+.stageBadge[data-stage='working'] {
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary, #4d6bfe) 14%, transparent);
+  color: var(--dsw-panel-on-tint-business);
+}
+
+.stageBadge[data-stage='review'] {
+  background: color-mix(in srgb, var(--dsw-alias-state-warning) 14%, transparent);
+  color: var(--dsw-panel-on-tint-warning);
+}
+
+.stageBadge[data-stage='approved'],
+.stageBadge[data-stage='committed'] {
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary, #4d6bfe) 14%, transparent);
+  color: var(--dsw-panel-on-tint-business);
+}
+
+.stageBadge[data-stage='tested'] {
+  background: color-mix(in srgb, var(--dsw-alias-state-success) 14%, transparent);
+  color: var(--dsw-panel-on-tint-success);
+}
+
+.stageBadge[data-stage='done'] {
+  background: color-mix(in srgb, var(--dsw-alias-state-success) 14%, transparent);
+  color: var(--dsw-panel-on-tint-success);
+}
+
+.stageBadge[data-stage='failed'] {
+  background: color-mix(in srgb, var(--dsw-alias-state-danger) 14%, transparent);
+  color: var(--dsw-panel-on-tint-danger);
+}
+
+.stageBadge[data-stage='cancelled'] {
+  background: transparent;
+  color: var(--dsw-panel-label-tertiary);
+  text-decoration: line-through;
+}
+
+/* dependency list (indent = upstream chain depth) */
+.dagList {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dagRow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 3px 6px;
+  border-left: 2px solid color-mix(in srgb, var(--dsw-alias-line-strong) 55%, transparent);
+}
+
+.dagNode {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.dagNodeDot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 2px;
+  background: var(--dsw-alias-line-strong);
+}
+
+.dagNodeId {
+  flex: none;
+  color: var(--dsw-panel-label-primary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 9.5px;
+  font-weight: 700;
+  line-height: 14px;
+}
+
+.dagNodeSubject {
+  overflow: hidden;
+  color: var(--dsw-panel-label-secondary);
+  font-size: 10px;
+  line-height: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dagDepends {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding-left: 12px;
+}
+
+.dagDependsLabel {
+  flex: none;
+  color: var(--dsw-panel-label-tertiary);
+  font-size: 9px;
+  line-height: 14px;
+}
+
+.dagDepChip {
+  flex: none;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--dsw-alias-bg-fill-neutral);
+  color: var(--dsw-panel-label-secondary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 8.5px;
+  font-weight: 600;
+  line-height: 14px;
+}
+
+.dagDepChip[data-resolved='false'] {
+  opacity: 0.45;
+  text-decoration: line-through;
+}
+
+/* issues */
+.issueList {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.issueRow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 25px;
+  padding: 3px 6px;
+  border-radius: 6px;
+}
+
+.issueRow[data-status='resolved'] {
+  opacity: 0.55;
+}
+
+.severityBadge {
+  flex: none;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--dsw-alias-bg-fill-neutral);
+  color: var(--dsw-panel-label-secondary);
+  font-size: 8.5px;
+  font-weight: 700;
+  line-height: 15px;
+  white-space: nowrap;
+}
+
+.severityBadge[data-severity='BLOCKER'] {
+  background: color-mix(in srgb, var(--dsw-alias-state-danger) 14%, transparent);
+  color: var(--dsw-panel-on-tint-danger);
+}
+
+.severityBadge[data-severity='HIGH'] {
+  background: color-mix(in srgb, var(--dsw-alias-state-warning) 14%, transparent);
+  color: var(--dsw-panel-on-tint-warning);
+}
+
+.severityBadge[data-severity='MEDIUM'] {
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary, #4d6bfe) 14%, transparent);
+  color: var(--dsw-panel-on-tint-business);
+}
+
+.severityBadge[data-severity='LOW'] {
+  background: var(--dsw-alias-bg-fill-neutral);
+  color: var(--dsw-panel-label-tertiary);
+}
+
+.issueTitle {
+  overflow: hidden;
+  color: var(--dsw-panel-label-primary);
+  font-size: 10.5px;
+  line-height: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.issueStatus {
+  flex: none;
+  color: var(--dsw-panel-label-tertiary);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 14px;
+  white-space: nowrap;
+}
+
+.issueStatus[data-status='open'] {
+  color: var(--dsw-panel-on-tint-warning);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toggleButton,
+  .chevron {
+    transition: none;
+  }
+}
+
+/* Narrow screens: cap the whole panel and let the body scroll. */
+@media (max-width: 640px) {
+  .panel {
+    max-height: min(72vh, 480px);
+  }
+
+  .body {
+    max-height: 40vh;
+  }
+
+  .taskAssignee {
+    display: none;
+  }
+}
