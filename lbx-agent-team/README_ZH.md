@@ -255,4 +255,4 @@ pnpm verify
 
 ## 许可证
 
-[MIT](https://opensource.org/licenses/MIT) 许可证。
+[MIT](./../LICENSE) 许可证。
